@@ -1,0 +1,164 @@
+{
+  "channels": [
+    {
+      "channelKey": "QL6C0",
+      "channelIndex": 0,
+      "signalId": "1s201a",
+      "purpose": "подъем ПРУ слева",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": null,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6C1",
+      "channelIndex": 1,
+      "signalId": "1s201b",
+      "purpose": "опускание ПРУ слева",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": null,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6C2",
+      "channelIndex": 2,
+      "signalId": "1s202a",
+      "purpose": "подъем ПРУ справа",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": null,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6C3",
+      "channelIndex": 3,
+      "signalId": "s1202b",
+      "purpose": "опускание ПРУ справа",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": null,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6C6",
+      "channelIndex": 6,
+      "signalId": "1s212b",
+      "purpose": "крюк слева выдвинуть",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": 10,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6C7",
+      "channelIndex": 7,
+      "signalId": "1s212a",
+      "purpose": "крюк слева задвинуть",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": 9,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6C8",
+      "channelIndex": 8,
+      "signalId": "1s213b",
+      "purpose": "крюк справа выдвинуть",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": 12,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6C9",
+      "channelIndex": 9,
+      "signalId": "1s213a",
+      "purpose": "крюк справа задвинуть",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": 11,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6CA",
+      "channelIndex": 10,
+      "signalId": "1s247b",
+      "purpose": "левый роликовый захват снаружи открыть",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": 2,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6CB",
+      "channelIndex": 11,
+      "signalId": "1s247a",
+      "purpose": "левый роликовый захват снаружи закрыть",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": 1,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6CC",
+      "channelIndex": 12,
+      "signalId": "1s248b",
+      "purpose": "левый роликовый захват внутри открыть",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": 4,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6CD",
+      "channelIndex": 13,
+      "signalId": "1s248a",
+      "purpose": "левый роликовый захват внутри закрыть",
+      "board": "B31/U15",
+      "module": "QL6C",
+      "photoIndex": 3,
+      "sourceTopic": "puma_board"
+    },
+    {
+      "channelKey": "QL6D0",
+      "channelIndex": 0,
+      "signalId": "1s250b",
+      "purpose": "правый роликовый захват снаружи открыть",
+      "board": "B31/U16",
+      "module": "QL6D",
+      "photoIndex": 8,
+      "sourceTopic": "puma_board_u16"
+    },
+    {
+      "channelKey": "QL6D1",
+      "channelIndex": 1,
+      "signalId": "1s250a",
+      "purpose": "правый роликовый захват снаружи закрыть",
+      "board": "B31/U16",
+      "module": "QL6D",
+      "photoIndex": 7,
+      "sourceTopic": "puma_board_u16"
+    },
+    {
+      "channelKey": "QL6D2",
+      "channelIndex": 2,
+      "signalId": "1s251b",
+      "purpose": "правый роликовый захват внутри открыть",
+      "board": "B31/U16",
+      "module": "QL6D",
+      "photoIndex": 6,
+      "sourceTopic": "puma_board_u16"
+    },
+    {
+      "channelKey": "QL6D3",
+      "channelIndex": 3,
+      "signalId": "1s251a",
+      "purpose": "правый роликовый захват внутри закрыть",
+      "board": "B31/U16",
+      "module": "QL6D",
+      "photoIndex": 5,
+      "sourceTopic": "puma_board_u16"
+    }
+  ]
+}

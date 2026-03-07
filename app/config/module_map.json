@@ -1,0 +1,26 @@
+{
+  "modules": {
+    "QL6C": {
+      "board": "B31/U15",
+      "title": "Плата B31/U15 QL6C"
+    },
+    "QL6D": {
+      "board": "B31/U16",
+      "title": "Плата B31/U16 QL6D"
+    }
+  },
+  "groups": {
+    "technicalPage": {
+      "modules": ["QL6C", "QL6D"]
+    },
+    "trainPage": {
+      "modules": ["QL6C", "QL6D"]
+    },
+    "selectedNode": {
+      "modules": ["QL6C", "QL6D"]
+    },
+    "modal": {
+      "modules": ["QL6C", "QL6D"]
+    }
+  }
+}
