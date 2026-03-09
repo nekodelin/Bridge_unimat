@@ -3,7 +3,15 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-ChannelStatus = Literal["normal", "active", "breakage", "short_circuit", "inactive", "unknown"]
+ChannelStatus = Literal[
+    "normal",
+    "active",
+    "open_circuit",
+    "breakage",
+    "short_circuit",
+    "inactive",
+    "unknown",
+]
 SeverityLevel = Literal["info", "warning", "error"]
 
 
@@ -17,7 +25,9 @@ class ChannelState(BaseModel):
     purpose: str
     photoIndex: int | None = None
     board: str
+    unit: str | None = None
     module: str
+    topic: str | None = None
     input: int
     output: int
     diagnostic: int
@@ -28,6 +38,7 @@ class ChannelState(BaseModel):
     action: str | None = None
     severity: SeverityLevel
     isFault: bool
+    updatedAt: datetime | None = None
 
 
 class SummarySnapshot(BaseModel):
@@ -51,11 +62,17 @@ class StateSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     timestamp: datetime | None = None
+    updatedAt: datetime | None = None
     source: str = "mqtt"
     board: str | None = None
     module: str | None = None
-    raw: dict[str, int] | None = None
+    raw: dict[str, int | None] | None = None
+    topics: dict[str, str | None] = Field(default_factory=dict)
+    faultCount: int = 0
+    warningCount: int = 0
+    normalCount: int = 0
     channels: list[ChannelState] = Field(default_factory=list)
+    decodedChannels: list[ChannelState] = Field(default_factory=list)
     summary: SummarySnapshot
     aggregates: AggregatesSnapshot
     act: dict[str, bool | None] = Field(default_factory=lambda: {"tifon": None})

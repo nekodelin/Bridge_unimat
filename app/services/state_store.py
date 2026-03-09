@@ -4,7 +4,7 @@ from datetime import datetime
 from app.models import ModuleGroupConfig
 from app.schemas import AggregatesSnapshot, ChannelState, StateSnapshot, SummarySnapshot
 
-FAULT_STATUSES = {"breakage", "short_circuit"}
+FAULT_STATUSES = {"open_circuit", "breakage", "short_circuit"}
 NORMAL_STATUSES = {"normal", "active"}
 
 
@@ -23,7 +23,8 @@ class StateStore:
         self._source = "mqtt"
         self._board: str | None = None
         self._module: str | None = None
-        self._raw: dict[str, int] | None = None
+        self._raw: dict[str, int | None] | None = None
+        self._topics: dict[str, str | None] = {}
         self._act: dict[str, bool | None] = {"tifon": None}
 
     async def get_snapshot(self) -> StateSnapshot:
@@ -37,11 +38,12 @@ class StateStore:
     async def apply_board_update(
         self,
         channels: list[ChannelState],
-        raw: dict[str, int],
+        raw: dict[str, int | None],
         timestamp: datetime,
         source: str,
         board: str | None,
         module: str | None,
+        topic: str | None = None,
     ) -> tuple[StateSnapshot, list[ChannelState], bool]:
         async with self._lock:
             changed_channels: list[ChannelState] = []
@@ -69,15 +71,24 @@ class StateStore:
             self._board = board
             self._module = module
             self._raw = raw
+            if topic:
+                self._topics["state"] = topic
 
             snapshot = self._build_snapshot_locked()
             return snapshot, changed_channels, bool(changed_channels)
 
-    async def apply_act_update(self, tifon_value: bool, timestamp: datetime) -> tuple[StateSnapshot, bool]:
+    async def apply_act_update(
+        self,
+        tifon_value: bool,
+        timestamp: datetime,
+        topic: str | None = None,
+    ) -> tuple[StateSnapshot, bool]:
         async with self._lock:
             changed = self._act.get("tifon") != tifon_value
             self._act["tifon"] = tifon_value
             self._timestamp = timestamp
+            if topic:
+                self._topics["act"] = topic
             snapshot = self._build_snapshot_locked()
             return snapshot, changed
 
@@ -107,11 +118,17 @@ class StateStore:
 
         return StateSnapshot(
             timestamp=self._timestamp,
+            updatedAt=self._timestamp,
             source=self._source,
             board=self._board,
             module=self._module,
             raw=self._raw.copy() if self._raw else None,
+            topics=self._topics.copy(),
+            faultCount=fault_count,
+            warningCount=warning_count,
+            normalCount=normal_count,
             channels=channels,
+            decodedChannels=[item.model_copy(deep=True) for item in channels],
             summary=summary,
             aggregates=aggregates,
             act=self._act.copy(),

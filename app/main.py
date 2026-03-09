@@ -62,8 +62,7 @@ async def lifespan(app: FastAPI):
         await runtime.process_board_payload(payload=payload, topic=topic, source=source)
 
     async def on_act_message(payload: ActPayload, topic: str) -> None:
-        _ = topic
-        await runtime.process_act_payload(payload=payload, source="mqtt")
+        await runtime.process_act_payload(payload=payload, source="mqtt", topic=topic)
 
     async def on_connection_event(event_name: str) -> None:
         if event_name == "mqtt_connected":

@@ -4,15 +4,17 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 class BoardPayload(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    in_: StrictInt = Field(alias="in")
-    inversed: StrictInt
-    out: StrictInt
+    in_: StrictInt = Field(alias="in", ge=0, le=255)
+    inversed: StrictInt = Field(ge=0, le=255)
+    out: StrictInt = Field(ge=0, le=255)
+    other: StrictInt | None = Field(default=None, ge=0, le=255)
 
-    def to_raw_dict(self) -> dict[str, int]:
+    def to_raw_dict(self) -> dict[str, int | None]:
         return {
             "in": int(self.in_),
             "inversed": int(self.inversed),
             "out": int(self.out),
+            "other": int(self.other) if self.other is not None else None,
         }
 
 

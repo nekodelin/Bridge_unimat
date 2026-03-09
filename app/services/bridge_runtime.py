@@ -58,7 +58,7 @@ class BridgeRuntime:
         timestamp = now_utc()
         await self._remember_last_board_payload(payload=payload, topic=topic, source=source, timestamp=timestamp)
 
-        decoded_channels = self.decoder.decode_board_payload(payload, topic=topic)
+        decoded_channels = self.decoder.decode_board_payload(payload, topic=topic, updated_at=timestamp)
         if not decoded_channels:
             logger.warning("No mapped channels for topic=%s", topic)
             return
@@ -72,6 +72,7 @@ class BridgeRuntime:
             source=source,
             board=board,
             module=module,
+            topic=topic,
         )
         logger.info(
             "Decoded payload summary topic=%s source=%s moduleStatus=%s faultCount=%s warningCount=%s normalCount=%s",
@@ -101,10 +102,16 @@ class BridgeRuntime:
                 }
             )
 
-    async def process_act_payload(self, payload: ActPayload, source: str = "mqtt") -> None:
+    async def process_act_payload(
+        self,
+        payload: ActPayload,
+        source: str = "mqtt",
+        topic: str | None = None,
+    ) -> None:
         snapshot, changed = await self.state_store.apply_act_update(
             tifon_value=bool(payload.tifon),
             timestamp=now_utc(),
+            topic=topic,
         )
         if not changed:
             return
@@ -146,7 +153,11 @@ class BridgeRuntime:
         if not ok:
             return False, error
 
-        await self.process_act_payload(ActPayload(tifon=value), source="api")
+        await self.process_act_payload(
+            ActPayload(tifon=value),
+            source="api",
+            topic=self.settings.mqtt_topic_act,
+        )
         return True, None
 
     async def build_health(self, mqtt_connected: bool) -> dict:

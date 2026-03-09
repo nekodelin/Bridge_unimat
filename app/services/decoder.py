@@ -1,21 +1,31 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 
 from app.models import BoardPayload, ChannelConfig, EventTextConfig
 from app.schemas import ChannelState
+from app.utils import extract_bit_from_bytes, normalize_channel_index
 
-FAULT_STATUSES = {"breakage", "short_circuit"}
+FAULT_STATUSES = {"open_circuit", "short_circuit"}
 NORMAL_STATUSES = {"normal", "active"}
 DEBUG_STRATEGIES = ("strategyA", "strategyB")
 DEBUG_BIT_ORDERS = ("normal", "reversed")
-DEBUG_SUMMARY_STATUSES = ("normal", "short_circuit", "breakage", "unknown")
+DEBUG_SUMMARY_STATUSES = ("normal", "short_circuit", "open_circuit", "unknown")
 
 # Field mapping can be changed in one place.
 BIT_SOURCE_MAP = {
-    "input_inversed": "inversed",
+    "input": "in_",
     "output": "out",
-    "diagnostic": "in_",
+    "diagnostic": "inversed",
 }
+
+FAULT_ACTION_TEXT = (
+    "Проверить фишку гидрораспределителя и выполнить визуальный осмотр электропроводки цепи"
+)
+UNKNOWN_CAUSE_TEXT = "Комбинация сигналов не описана в таблице истинности"
+UNKNOWN_ACTION_TEXT = "Проверить корректность входных данных и схему подключения"
+
+logger = logging.getLogger("unimat.decoder")
 
 
 @dataclass(slots=True)
@@ -52,10 +62,10 @@ def decode_channel(input_bit: int, output_bit: int, diagnostic_bit: int) -> Chan
             is_fault=False,
             severity="info",
         )
-    if key == (0, 1, 0):
+    if key in {(0, 1, 0), (1, 1, 0)}:
         return ChannelDecodeResult(
-            status="breakage",
-            description="Обрыв",
+            status="open_circuit",
+            description="Обрыв цепи",
             state_label="Обрыв",
             is_fault=True,
             severity="error",
@@ -63,7 +73,7 @@ def decode_channel(input_bit: int, output_bit: int, diagnostic_bit: int) -> Chan
     if key == (1, 0, 0):
         return ChannelDecodeResult(
             status="short_circuit",
-            description="Короткое замыкание",
+            description="Короткое замыкание / авария / термозащита",
             state_label="КЗ",
             is_fault=True,
             severity="error",
@@ -88,6 +98,7 @@ class DecoderService:
         self.max_channel_index = max((item.channelIndex for item in signal_map), default=0)
         self.bit_size = max(self.max_channel_index + 1, 16)
         self.channels_by_topic_and_index: dict[str, dict[int, ChannelConfig]] = {}
+        self._out_of_range_warnings: set[tuple[str, int]] = set()
         for channel_cfg in signal_map:
             topic_map = self.channels_by_topic_and_index.setdefault(channel_cfg.sourceTopic, {})
             topic_map.setdefault(channel_cfg.channelIndex, channel_cfg)
@@ -95,20 +106,19 @@ class DecoderService:
     def default_inactive_channels(self) -> list[ChannelState]:
         channels: list[ChannelState] = []
         for channel_cfg in self.signal_map:
-            event_text = self.event_texts.get(channel_cfg.signalId)
-            title = event_text.eventTitle if event_text else channel_cfg.purpose
-            purpose = event_text.purpose if event_text else channel_cfg.purpose
-            action = event_text.action if event_text else None
+            purpose = self._resolve_purpose(channel_cfg)
             channels.append(
                 ChannelState(
                     channelKey=channel_cfg.channelKey,
                     channelIndex=channel_cfg.channelIndex,
                     signalId=channel_cfg.signalId,
-                    title=title,
+                    title=purpose,
                     purpose=purpose,
                     photoIndex=channel_cfg.photoIndex,
                     board=channel_cfg.board,
+                    unit=self._resolve_unit(channel_cfg.board),
                     module=channel_cfg.module,
+                    topic=channel_cfg.sourceTopic,
                     input=0,
                     output=0,
                     diagnostic=0,
@@ -116,17 +126,23 @@ class DecoderService:
                     stateLabel="Неактивно",
                     message="Нет данных",
                     cause=None,
-                    action=action,
+                    action=None,
                     severity="info",
                     isFault=False,
+                    updatedAt=None,
                 )
             )
         return channels
 
-    def decode_board_payload(self, payload: BoardPayload, topic: str) -> list[ChannelState]:
-        inversed_bits = decode_bits(int(getattr(payload, BIT_SOURCE_MAP["input_inversed"])), self.bit_size)
-        output_bits = decode_bits(int(getattr(payload, BIT_SOURCE_MAP["output"])), self.bit_size)
-        diagnostic_bits = decode_bits(int(getattr(payload, BIT_SOURCE_MAP["diagnostic"])), self.bit_size)
+    def decode_board_payload(
+        self,
+        payload: BoardPayload,
+        topic: str,
+        updated_at: datetime | None = None,
+    ) -> list[ChannelState]:
+        input_values = [int(getattr(payload, BIT_SOURCE_MAP["input"]))]
+        output_values = [int(getattr(payload, BIT_SOURCE_MAP["output"]))]
+        diagnostic_values = [int(getattr(payload, BIT_SOURCE_MAP["diagnostic"]))]
 
         decoded_channels: list[ChannelState] = []
         for channel_cfg in self.signal_map:
@@ -134,45 +150,52 @@ class DecoderService:
                 continue
 
             index = channel_cfg.channelIndex
-            inversed_bit = inversed_bits[index] if index < len(inversed_bits) else 0
-            input_bit = 0 if inversed_bit == 1 else 1
-            output_bit = output_bits[index] if index < len(output_bits) else 0
-            diagnostic_bit = diagnostic_bits[index] if index < len(diagnostic_bits) else 0
+            input_bit = self._extract_channel_bit(
+                values=input_values,
+                channel_index=index,
+                topic=topic,
+                field_name="in",
+            )
+            output_bit = self._extract_channel_bit(
+                values=output_values,
+                channel_index=index,
+                topic=topic,
+                field_name="out",
+            )
+            diagnostic_bit = self._extract_channel_bit(
+                values=diagnostic_values,
+                channel_index=index,
+                topic=topic,
+                field_name="inversed",
+            )
 
             channel_state = decode_channel(input_bit, output_bit, diagnostic_bit)
-            event_text = self.event_texts.get(channel_cfg.signalId)
-
-            title = event_text.eventTitle if event_text else channel_cfg.purpose
-            purpose = event_text.purpose if event_text else channel_cfg.purpose
-            action = event_text.action if event_text else None
-            cause = None
-            if channel_state.status == "breakage" and event_text:
-                cause = event_text.breakageCause
-            elif channel_state.status == "short_circuit" and event_text:
-                cause = event_text.shortCause
-
-            message = title if channel_state.is_fault else channel_state.description
+            cause, action = self._resolve_cause_action(channel_state.status, channel_cfg.signalId)
+            purpose = self._resolve_purpose(channel_cfg)
 
             decoded_channels.append(
                 ChannelState(
                     channelKey=channel_cfg.channelKey,
+                    topic=topic,
+                    board=channel_cfg.board,
+                    unit=self._resolve_unit(channel_cfg.board),
+                    module=channel_cfg.module,
                     channelIndex=channel_cfg.channelIndex,
                     signalId=channel_cfg.signalId,
-                    title=title,
+                    title=purpose,
                     purpose=purpose,
                     photoIndex=channel_cfg.photoIndex,
-                    board=channel_cfg.board,
-                    module=channel_cfg.module,
                     input=input_bit,
                     output=output_bit,
                     diagnostic=diagnostic_bit,
                     status=channel_state.status,  # type: ignore[arg-type]
                     stateLabel=channel_state.state_label,
-                    message=message,
+                    message=channel_state.description,
                     cause=cause,
                     action=action,
                     severity=channel_state.severity,  # type: ignore[arg-type]
                     isFault=channel_state.is_fault,
+                    updatedAt=updated_at,
                 )
             )
 
@@ -194,6 +217,7 @@ class DecoderService:
             "in": {"decimal": raw_in, "bin": self._format_binary(raw_in, size)},
             "inversed": {"decimal": raw_inversed, "bin": self._format_binary(raw_inversed, size)},
             "out": {"decimal": raw_out, "bin": self._format_binary(raw_out, size)},
+            "other": payload.other,
         }
 
         in_bits_by_order = {
@@ -288,6 +312,53 @@ class DecoderService:
         if order == "reversed":
             return list(reversed(bits))
         return bits
+
+    def _extract_channel_bit(
+        self,
+        *,
+        values: list[int],
+        channel_index: int | str,
+        topic: str,
+        field_name: str,
+    ) -> int:
+        normalized_index = normalize_channel_index(channel_index)
+        byte_index = normalized_index // 8
+        if byte_index >= len(values):
+            warn_key = (topic, normalized_index)
+            if warn_key not in self._out_of_range_warnings:
+                self._out_of_range_warnings.add(warn_key)
+                logger.warning(
+                    "Channel bit out of payload range topic=%s field=%s channelIndex=%s -> using 0",
+                    topic,
+                    field_name,
+                    normalized_index,
+                )
+            return 0
+        return extract_bit_from_bytes(values, normalized_index)
+
+    def _resolve_cause_action(self, status: str, signal_id: str) -> tuple[str | None, str | None]:
+        if status == "open_circuit":
+            return f"Обрыв цепи гидрораспределителя {signal_id}", FAULT_ACTION_TEXT
+        if status == "short_circuit":
+            return f"Короткое замыкание в цепи гидрораспределителя {signal_id}", FAULT_ACTION_TEXT
+        if status == "unknown":
+            return UNKNOWN_CAUSE_TEXT, UNKNOWN_ACTION_TEXT
+        return None, None
+
+    def _resolve_purpose(self, channel_cfg: ChannelConfig) -> str:
+        event_text = self.event_texts.get(channel_cfg.signalId)
+        if event_text and event_text.purpose:
+            return event_text.purpose
+        return channel_cfg.purpose
+
+    @staticmethod
+    def _resolve_unit(board_value: str) -> str | None:
+        if "/" not in board_value:
+            return None
+        parts = [chunk.strip() for chunk in board_value.split("/") if chunk.strip()]
+        if len(parts) < 2:
+            return None
+        return parts[-1]
 
     def _resolve_bit_size(self, payload: BoardPayload) -> int:
         max_payload_value = max(int(payload.in_), int(payload.inversed), int(payload.out), 0)

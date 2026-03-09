@@ -153,22 +153,23 @@ class MQTTBridgeClient:
             self._schedule(self.on_raw_message(msg.topic, raw_text, now_utc()))
         try:
             payload_data = json.loads(raw_text)
-        except json.JSONDecodeError:
-            logger.exception("Invalid MQTT JSON: topic=%s", msg.topic)
+        except json.JSONDecodeError as exc:
+            logger.warning("Invalid MQTT JSON topic=%s error=%s", msg.topic, exc.msg)
             return
 
         if msg.topic == self.settings.mqtt_topic_state:
             try:
                 payload = BoardPayload.model_validate(payload_data)
-            except ValidationError:
-                logger.exception("BoardPayload validation failed: topic=%s", msg.topic)
+            except ValidationError as exc:
+                logger.warning("BoardPayload validation failed topic=%s errors=%s", msg.topic, exc.errors())
                 return
             logger.info(
-                "Validated BoardPayload topic=%s in=%s inversed=%s out=%s",
+                "Validated BoardPayload topic=%s in=%s inversed=%s out=%s other=%s",
                 msg.topic,
                 payload.in_,
                 payload.inversed,
                 payload.out,
+                payload.other,
             )
             self._schedule(self.on_board_message(payload, msg.topic))
             return
@@ -176,8 +177,8 @@ class MQTTBridgeClient:
         if msg.topic == self.settings.mqtt_topic_act:
             try:
                 payload = ActPayload.model_validate(payload_data)
-            except ValidationError:
-                logger.exception("ActPayload validation failed: topic=%s", msg.topic)
+            except ValidationError as exc:
+                logger.warning("ActPayload validation failed topic=%s errors=%s", msg.topic, exc.errors())
                 return
             logger.info("Validated ActPayload topic=%s tifon=%s", msg.topic, payload.tifon)
             self._schedule(self.on_act_message(payload, msg.topic))
