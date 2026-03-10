@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router as api_router
@@ -45,6 +45,7 @@ async def lifespan(app: FastAPI):
     state_store = StateStore(initial_channels=initial_channels, groups=config_bundle.groups)
     journal = EventJournalService(session_factory=session_factory)
     broadcaster = WebSocketBroadcaster()
+    journal_broadcaster = WebSocketBroadcaster()
     auth_service = AuthService(settings=settings, session_factory=session_factory)
     await auth_service.ensure_first_admin()
 
@@ -55,6 +56,7 @@ async def lifespan(app: FastAPI):
         state_store=state_store,
         journal=journal,
         broadcaster=broadcaster,
+        journal_broadcaster=journal_broadcaster,
     )
 
     app.state.runtime = runtime
@@ -180,6 +182,55 @@ async def websocket_state(websocket: WebSocket) -> None:
     finally:
         total = await broadcaster.disconnect(websocket)
         await runtime.websocket_disconnected(total_clients=total)
+
+
+@app.websocket("/ws/journal")
+async def websocket_journal(websocket: WebSocket) -> None:
+    runtime: BridgeRuntime = websocket.app.state.runtime
+    auth_service: AuthService = websocket.app.state.auth_service
+    broadcaster: WebSocketBroadcaster = runtime.journal_broadcaster
+
+    token = _extract_ws_token(websocket)
+    if not token:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Not authenticated")
+        return
+
+    user = await auth_service.authenticate_token(token)
+    if user is None:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token")
+        return
+
+    total = await broadcaster.connect(websocket)
+    logger.info("Journal WebSocket connected user=%s clients=%s", user.username, total)
+
+    try:
+        while True:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                break
+            if message["type"] == "websocket.receive":
+                await websocket.send_json({"type": "info", "message": "read-only"})
+    except WebSocketDisconnect:
+        logger.info("Journal WebSocket disconnected user=%s", user.username)
+    finally:
+        total = await broadcaster.disconnect(websocket)
+        logger.info("Journal WebSocket clients=%s", total)
+
+
+def _extract_ws_token(websocket: WebSocket) -> str | None:
+    token = websocket.query_params.get("token") or websocket.query_params.get("access_token")
+    if token:
+        return token.strip() or None
+
+    auth_header = websocket.headers.get("authorization")
+    if not auth_header:
+        return None
+
+    scheme, _, value = auth_header.partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+    clean_value = value.strip()
+    return clean_value or None
 
 
 @app.get("/health")

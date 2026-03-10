@@ -23,6 +23,7 @@ class BridgeRuntime:
         state_store: StateStore,
         journal: EventJournalService,
         broadcaster: WebSocketBroadcaster,
+        journal_broadcaster: WebSocketBroadcaster | None = None,
     ) -> None:
         self.settings = settings
         self.config_bundle = config_bundle
@@ -30,6 +31,7 @@ class BridgeRuntime:
         self.state_store = state_store
         self.journal = journal
         self.broadcaster = broadcaster
+        self.journal_broadcaster = journal_broadcaster or broadcaster
         self.mqtt_client = None
         self._debug_lock = asyncio.Lock()
         self._last_board_payload: BoardPayload | None = None
@@ -102,12 +104,7 @@ class BridgeRuntime:
             }
         )
         for item in journal_items:
-            await self.broadcaster.broadcast(
-                {
-                    "type": "journal_append",
-                    "data": item.model_dump(mode="json"),
-                }
-            )
+            await self._broadcast_journal_entry(item)
 
     async def process_act_payload(
         self,
@@ -146,7 +143,7 @@ class BridgeRuntime:
                 title="MQTT event",
                 message=event_name,
             )
-        await self.broadcaster.broadcast({"type": "journal_append", "data": entry.model_dump(mode="json")})
+        await self._broadcast_journal_entry(entry)
 
     async def publish_tifon(self, value: bool) -> tuple[bool, str | None]:
         if self.settings.mock_mode:
@@ -233,12 +230,12 @@ class BridgeRuntime:
         level: str = "info",
     ) -> JournalEntry:
         entry = await self.journal.append_system(title=title, message=message, level=level)
-        await self.broadcaster.broadcast({"type": "journal_append", "data": entry.model_dump(mode="json")})
+        await self._broadcast_journal_entry(entry)
         return entry
 
     async def append_auth_event(self, *, username: str, action: str) -> JournalEntry:
         entry = await self.journal.append_auth(username=username, action=action)
-        await self.broadcaster.broadcast({"type": "journal_append", "data": entry.model_dump(mode="json")})
+        await self._broadcast_journal_entry(entry)
         return entry
 
     async def websocket_connected(self, total_clients: int) -> None:
@@ -337,3 +334,11 @@ class BridgeRuntime:
         if value is None:
             return "-"
         return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    async def _broadcast_journal_entry(self, entry: JournalEntry) -> None:
+        await self.journal_broadcaster.broadcast(
+            {
+                "type": "journal_append",
+                "data": entry.model_dump(mode="json"),
+            }
+        )

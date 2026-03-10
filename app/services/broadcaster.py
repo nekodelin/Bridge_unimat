@@ -1,7 +1,10 @@
 import asyncio
+import logging
 from typing import Any
 
 from fastapi import WebSocket
+
+logger = logging.getLogger("unimat.websocket")
 
 
 class WebSocketBroadcaster:
@@ -32,7 +35,8 @@ class WebSocketBroadcaster:
         for client in clients:
             try:
                 await client.send_json(payload)
-            except Exception:
+            except Exception as exc:
+                logger.warning("WebSocket send failed; removing stale client: %s", exc)
                 stale.append(client)
 
         if not stale:
