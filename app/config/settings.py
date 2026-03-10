@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     journal_limit: int = Field(default=500, alias="JOURNAL_LIMIT")
     ws_heartbeat_sec: int = Field(default=15, alias="WS_HEARTBEAT_SEC")
 
+    database_url: str = Field(default="sqlite+aiosqlite:///./data/app.db", alias="DATABASE_URL")
+    jwt_secret_key: str = Field(default="change-me-in-production", alias="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=480, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    first_admin_username: str = Field(default="admin", alias="FIRST_ADMIN_USERNAME")
+    first_admin_password: str = Field(default="admin", alias="FIRST_ADMIN_PASSWORD")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

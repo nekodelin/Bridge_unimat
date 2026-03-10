@@ -92,6 +92,15 @@ class JournalEntry(BaseModel):
     title: str
     message: str
     action: str | None = None
+    createdAt: datetime | None = None
+    eventType: Literal["state_change", "auth", "system"]
+    source: str
+    elementKey: str | None = None
+    elementName: str | None = None
+    previousState: str | None = None
+    newState: str | None = None
+    description: str | None = None
+    rawPayload: dict[str, Any] | None = None
 
 
 class JournalResponse(BaseModel):
@@ -128,3 +137,32 @@ class ConfigResponse(BaseModel):
     signalMap: list[dict[str, Any]]
     eventTexts: dict[str, dict[str, Any]]
     moduleMap: dict[str, Any]
+
+
+class AuthLoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    username: str
+    password: str
+
+
+class AuthMeResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    username: str
+    createdAt: datetime
+
+
+class AuthLoginResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int
+
+
+class AuthLogoutResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool = True

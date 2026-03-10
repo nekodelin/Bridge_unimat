@@ -44,15 +44,17 @@ class StateStore:
         board: str | None,
         module: str | None,
         topic: str | None = None,
-    ) -> tuple[StateSnapshot, list[ChannelState], bool]:
+    ) -> tuple[StateSnapshot, list[ChannelState], dict[str, str | None], bool]:
         async with self._lock:
             changed_channels: list[ChannelState] = []
+            previous_states: dict[str, str | None] = {}
             for channel in channels:
                 prev = self._channels_by_key.get(channel.channelKey)
                 if prev is None:
                     self._channels_by_key[channel.channelKey] = channel
                     self._channel_order.append(channel.channelKey)
                     changed_channels.append(channel.model_copy(deep=True))
+                    previous_states[channel.channelKey] = None
                     continue
 
                 if (
@@ -63,6 +65,7 @@ class StateStore:
                     or prev.isFault != channel.isFault
                 ):
                     changed_channels.append(channel.model_copy(deep=True))
+                    previous_states[channel.channelKey] = prev.status
 
                 self._channels_by_key[channel.channelKey] = channel
 
@@ -75,7 +78,7 @@ class StateStore:
                 self._topics["state"] = topic
 
             snapshot = self._build_snapshot_locked()
-            return snapshot, changed_channels, bool(changed_channels)
+            return snapshot, changed_channels, previous_states, bool(changed_channels)
 
     async def apply_act_update(
         self,

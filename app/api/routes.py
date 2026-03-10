@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Query, Request, status
-from fastapi.responses import JSONResponse
+from datetime import UTC, date, datetime, time
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse, Response
+
+from app.api.deps import get_current_user
 from app.schemas import (
     ActCommandRequest,
     ActCommandResponse,
@@ -9,6 +12,8 @@ from app.schemas import (
     JournalResponse,
     StateSnapshot,
 )
+from app.services import AuthenticatedUser
+from app.utils import now_utc
 
 router = APIRouter(prefix="/api", tags=["api"])
 
@@ -65,11 +70,50 @@ async def get_channels(request: Request):
 @router.get("/journal", response_model=JournalResponse)
 async def get_journal(
     request: Request,
-    limit: int = Query(default=100, ge=1, le=500),
+    _current_user: AuthenticatedUser = Depends(get_current_user),
+    limit: int = Query(default=100, ge=1, le=1000),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
 ) -> JournalResponse:
     runtime = _runtime(request)
-    items = await runtime.get_journal(limit=limit)
+    parsed_from = _parse_date(date_from, end_of_day=False, parameter_name="date_from")
+    parsed_to = _parse_date(date_to, end_of_day=True, parameter_name="date_to")
+    if parsed_from and parsed_to and parsed_from > parsed_to:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="date_from must be less than or equal to date_to",
+        )
+    items = await runtime.get_journal(limit=limit, date_from=parsed_from, date_to=parsed_to)
     return JournalResponse(items=items)
+
+
+@router.get("/journal/export")
+async def export_journal(
+    request: Request,
+    _current_user: AuthenticatedUser = Depends(get_current_user),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+):
+    runtime = _runtime(request)
+    parsed_from = _parse_date(date_from, end_of_day=False, parameter_name="date_from")
+    parsed_to = _parse_date(date_to, end_of_day=True, parameter_name="date_to")
+    if parsed_from and parsed_to and parsed_from > parsed_to:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="date_from must be less than or equal to date_to",
+        )
+
+    try:
+        text_data = await runtime.export_journal_text(date_from=parsed_from, date_to=parsed_to)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Export failed: {exc}",
+        ) from exc
+
+    filename = f"journal_export_{now_utc().strftime('%Y%m%d_%H%M%S')}.txt"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=text_data.encode("utf-8"), media_type="text/plain; charset=utf-8", headers=headers)
 
 
 @router.get("/config", response_model=ConfigResponse)
@@ -93,3 +137,32 @@ async def post_tifon(request: Request, body: ActCommandRequest):
             content=ActCommandResponse(ok=False, error=error or "publish failed").model_dump(),
         )
     return ActCommandResponse(ok=True, error=None)
+
+
+def _parse_date(value: str | None, *, end_of_day: bool, parameter_name: str) -> datetime | None:
+    if value is None or not value.strip():
+        return None
+
+    raw = value.strip()
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        parsed_date = _parse_date_only(raw)
+        if parsed_date is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid {parameter_name}. Use ISO datetime or YYYY-MM-DD.",
+            )
+        parsed_time = time.max if end_of_day else time.min
+        parsed = datetime.combine(parsed_date, parsed_time)
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _parse_date_only(value: str) -> date | None:
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None

@@ -8,9 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router as api_router
 from app.config import get_settings, load_config_bundle
+from app.db import close_database, create_tables, get_session_factory, init_database
 from app.models import ActPayload, BoardPayload
 from app.mqtt import MQTTBridgeClient
 from app.services import (
+    AuthService,
     BridgeRuntime,
     DecoderService,
     EventJournalService,
@@ -30,6 +32,10 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_database(settings.database_url)
+    await create_tables()
+    session_factory = get_session_factory()
+
     config_bundle = load_config_bundle()
     decoder = DecoderService(
         signal_map=config_bundle.signal_map,
@@ -37,8 +43,10 @@ async def lifespan(app: FastAPI):
     )
     initial_channels = decoder.default_inactive_channels()
     state_store = StateStore(initial_channels=initial_channels, groups=config_bundle.groups)
-    journal = EventJournalService(max_size=settings.journal_limit)
+    journal = EventJournalService(session_factory=session_factory)
     broadcaster = WebSocketBroadcaster()
+    auth_service = AuthService(settings=settings, session_factory=session_factory)
+    await auth_service.ensure_first_admin()
 
     runtime = BridgeRuntime(
         settings=settings,
@@ -50,6 +58,7 @@ async def lifespan(app: FastAPI):
     )
 
     app.state.runtime = runtime
+    app.state.auth_service = auth_service
     app.state.mqtt_connected = False
     app.state.mqtt_client = None
     app.state.mock_service = None
@@ -114,6 +123,8 @@ async def lifespan(app: FastAPI):
         mqtt_client: MQTTBridgeClient | None = app.state.mqtt_client
         if mqtt_client is not None:
             mqtt_client.stop()
+
+        await close_database()
 
 
 async def _heartbeat_loop(app: FastAPI) -> None:

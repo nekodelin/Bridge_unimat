@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from app.config import ConfigBundle, Settings
 from app.models import ActPayload, BoardPayload
@@ -63,11 +63,13 @@ class BridgeRuntime:
             logger.warning("No mapped channels for topic=%s", topic)
             return
 
+        raw_payload = payload.to_raw_dict()
+
         board = decoded_channels[0].board if decoded_channels else None
         module = decoded_channels[0].module if decoded_channels else None
-        snapshot, changed_channels, changed = await self.state_store.apply_board_update(
+        snapshot, changed_channels, previous_states, changed = await self.state_store.apply_board_update(
             channels=decoded_channels,
-            raw=payload.to_raw_dict(),
+            raw=raw_payload,
             timestamp=timestamp,
             source=source,
             board=board,
@@ -87,7 +89,12 @@ class BridgeRuntime:
         if not changed:
             return
 
-        journal_items = await self._append_channel_journal(changed_channels)
+        journal_items = await self._append_channel_journal(
+            channels=changed_channels,
+            previous_states=previous_states,
+            source=source,
+            raw_payload=raw_payload,
+        )
         await self.broadcaster.broadcast(
             {
                 "type": "state_update",
@@ -126,12 +133,12 @@ class BridgeRuntime:
         if event_name == "mqtt_connected":
             entry = await self.journal.append_system(
                 title="MQTT connected",
-                message="Соединение с MQTT брокером установлено",
+                message="MQTT broker connection established",
             )
         elif event_name == "mqtt_disconnected":
             entry = await self.journal.append_system(
                 title="MQTT disconnected",
-                message="Соединение с MQTT брокером потеряно",
+                message="MQTT broker connection lost",
                 level="warning",
             )
         else:
@@ -174,8 +181,23 @@ class BridgeRuntime:
     async def get_channels(self) -> list[ChannelState]:
         return await self.state_store.get_channels()
 
-    async def get_journal(self, limit: int) -> list[JournalEntry]:
-        return await self.journal.list_recent(limit=limit)
+    async def get_journal(
+        self,
+        *,
+        limit: int,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> list[JournalEntry]:
+        return await self.journal.list_recent(limit=limit, date_from=date_from, date_to=date_to)
+
+    async def export_journal_text(
+        self,
+        *,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> str:
+        items = await self.journal.list_for_export(date_from=date_from, date_to=date_to)
+        return self._render_journal_export(items=items, date_from=date_from, date_to=date_to)
 
     async def get_last_raw_mqtt_payload(self) -> dict | None:
         async with self._debug_lock:
@@ -214,16 +236,21 @@ class BridgeRuntime:
         await self.broadcaster.broadcast({"type": "journal_append", "data": entry.model_dump(mode="json")})
         return entry
 
+    async def append_auth_event(self, *, username: str, action: str) -> JournalEntry:
+        entry = await self.journal.append_auth(username=username, action=action)
+        await self.broadcaster.broadcast({"type": "journal_append", "data": entry.model_dump(mode="json")})
+        return entry
+
     async def websocket_connected(self, total_clients: int) -> None:
         await self.append_system_event(
             title="WebSocket client connected",
-            message=f"Клиент подключен. clients={total_clients}",
+            message=f"Client connected. clients={total_clients}",
         )
 
     async def websocket_disconnected(self, total_clients: int) -> None:
         await self.append_system_event(
             title="WebSocket client disconnected",
-            message=f"Клиент отключен. clients={total_clients}",
+            message=f"Client disconnected. clients={total_clients}",
         )
 
     async def heartbeat(self) -> None:
@@ -233,19 +260,22 @@ class BridgeRuntime:
         }
         await self.broadcaster.broadcast(payload)
 
-    async def _append_channel_journal(self, channels: list[ChannelState]) -> list[JournalEntry]:
+    async def _append_channel_journal(
+        self,
+        *,
+        channels: list[ChannelState],
+        previous_states: dict[str, str | None],
+        source: str,
+        raw_payload: dict[str, int | None],
+    ) -> list[JournalEntry]:
         entries: list[JournalEntry] = []
         for channel in channels:
-            entry = await self.journal.append_channel(
-                signal_id=channel.signalId,
-                channel_key=channel.channelKey,
-                module=channel.module,
-                board=channel.board,
-                status=channel.status,
-                level=channel.severity,
-                title=channel.title,
-                message=channel.cause if channel.isFault and channel.cause else channel.message,
-                action=channel.action,
+            previous_state = previous_states.get(channel.channelKey)
+            entry = await self.journal.append_state_change(
+                source=source,
+                channel=channel,
+                previous_state=previous_state,
+                raw_payload=raw_payload,
             )
             entries.append(entry)
         return entries
@@ -262,3 +292,48 @@ class BridgeRuntime:
             self._last_board_topic = topic
             self._last_board_source = source
             self._last_board_timestamp = timestamp
+
+    @staticmethod
+    def _render_journal_export(
+        *,
+        items: list[JournalEntry],
+        date_from: datetime | None,
+        date_to: datetime | None,
+    ) -> str:
+        generated_at = now_utc().astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+        from_label = BridgeRuntime._format_export_date(date_from)
+        to_label = BridgeRuntime._format_export_date(date_to)
+
+        lines = [
+            "UNIMAT Journal Export",
+            f"Generated at: {generated_at}",
+            f"Filter date_from: {from_label}",
+            f"Filter date_to: {to_label}",
+            "",
+        ]
+        if not items:
+            lines.append("No journal entries found for the selected period.")
+            lines.append("")
+            return "\n".join(lines)
+
+        for item in items:
+            timestamp = item.createdAt or item.timestamp
+            ts = timestamp.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+            element_key = item.elementKey or item.channelKey or "-"
+            element_name = item.elementName or item.title or "-"
+            prev_state = item.previousState or "-"
+            new_state = item.newState or item.status or "-"
+            description = item.description or item.message or "-"
+            line = (
+                f"[{ts}] {item.eventType} | {item.source} | {element_key} | {element_name} | "
+                f"{prev_state} -> {new_state} | {description}"
+            )
+            lines.append(line)
+        lines.append("")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_export_date(value: datetime | None) -> str:
+        if value is None:
+            return "-"
+        return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
