@@ -66,7 +66,6 @@ class QL6CMappingTest(unittest.TestCase):
         self.decoder = build_decoder()
         self.now = datetime.now(timezone.utc)
         self.logical_order_direct = ["6", "7", "8", "9", "A", "B", "C", "D"]
-        self.logical_order_out_reversed = ["D", "C", "B", "A", "9", "8", "7", "6"]
 
     def test_in_mapping_direct_bit0_to_6_bit7_to_d(self) -> None:
         for bit_index, logical_channel in enumerate(self.logical_order_direct):
@@ -74,7 +73,7 @@ class QL6CMappingTest(unittest.TestCase):
                 {
                     "in": 1 << bit_index,
                     "inversed": 255,
-                    "out": 1 << (7 - bit_index),
+                    "out": 255,
                     "other": 0,
                 }
             )
@@ -99,8 +98,8 @@ class QL6CMappingTest(unittest.TestCase):
             self.assertEqual(by_logical[logical_channel].diagnostic, 1)
             self.assertEqual(sum(item.diagnostic for item in decoded), 1)
 
-    def test_out_mapping_reversed_bit0_to_d_bit7_to_6(self) -> None:
-        for bit_index, logical_channel in enumerate(self.logical_order_out_reversed):
+    def test_out_mapping_direct_bit0_to_6_bit7_to_d(self) -> None:
+        for bit_index, logical_channel in enumerate(self.logical_order_direct):
             payload = BoardPayload.model_validate(
                 {
                     "in": 255,
@@ -126,6 +125,15 @@ class DecoderTruthTableTest(unittest.TestCase):
             ((0, 0, 0), ("unknown", "Неизвестно", None, "Неизвестная комбинация сигналов", False)),
         ]
 
+        indicator_by_inputs = {
+            (0, 0, 1): ("normal", False, False),
+            (1, 1, 1): ("normal", True, False),
+            (0, 1, 0): ("break", True, True),
+            (1, 1, 0): ("break", True, True),
+            (1, 0, 0): ("short", False, True),
+            (0, 0, 0): ("unknown", False, False),
+        }
+
         for inputs, expected in cases:
             with self.subTest(inputs=inputs):
                 result = decode_triplet(*inputs)
@@ -134,6 +142,9 @@ class DecoderTruthTableTest(unittest.TestCase):
                 self.assertEqual(result.fault_type, expected[2])
                 self.assertEqual(result.state_label, expected[3])
                 self.assertEqual(result.fault, expected[4])
+                self.assertEqual(result.status_code, indicator_by_inputs[inputs][0])
+                self.assertEqual(result.yellow_led, indicator_by_inputs[inputs][1])
+                self.assertEqual(result.red_led, indicator_by_inputs[inputs][2])
 
 
 class DecodePayloadE2ETest(unittest.TestCase):
@@ -154,8 +165,8 @@ class DecodePayloadE2ETest(unittest.TestCase):
         by_logical = {item.logicalChannel: item for item in decoded}
         return {"decoded": decoded, "by_logical": by_logical}
 
-    def test_full_decode_example_in5_inversed251_out160(self) -> None:
-        result = self._decode(in_value=5, inversed_value=251, out_value=160, other_value=0)
+    def test_full_decode_example_in5_inversed251_out5(self) -> None:
+        result = self._decode(in_value=5, inversed_value=251, out_value=5, other_value=0)
         decoded = result["decoded"]
         by_logical = result["by_logical"]
 
@@ -193,15 +204,21 @@ class DecodePayloadE2ETest(unittest.TestCase):
         self.assertEqual(by_logical["6"].stateLabel, "Ключ включен")
         self.assertEqual(by_logical["6"].faultType, None)
         self.assertEqual(by_logical["6"].rawBits, {"in": 1, "out": 1, "dg": 1})
+        self.assertEqual(by_logical["6"].statusCode, "normal")
+        self.assertEqual(by_logical["6"].yellow_led, True)
+        self.assertEqual(by_logical["6"].red_led, False)
         self.assertEqual(by_logical["6"].message, "крюк слева выдвинуть")
 
         self.assertEqual(by_logical["8"].statusLabel, "Обрыв")
         self.assertEqual(by_logical["8"].faultType, "break")
         self.assertEqual(by_logical["8"].rawBits, {"in": 1, "out": 1, "dg": 0})
+        self.assertEqual(by_logical["8"].statusCode, "break")
+        self.assertEqual(by_logical["8"].yellow_led, True)
+        self.assertEqual(by_logical["8"].red_led, True)
         self.assertEqual(by_logical["8"].message, "Обрыв")
 
-    def test_full_decode_example_in5_inversed251_out128(self) -> None:
-        result = self._decode(in_value=5, inversed_value=251, out_value=128, other_value=255)
+    def test_full_decode_example_in5_inversed251_out1(self) -> None:
+        result = self._decode(in_value=5, inversed_value=251, out_value=1, other_value=255)
         decoded = result["decoded"]
         by_logical = result["by_logical"]
 
@@ -232,6 +249,9 @@ class DecodePayloadE2ETest(unittest.TestCase):
         self.assertEqual(by_logical["8"].stateLabel, "Короткое замыкание")
         self.assertEqual(by_logical["8"].faultType, "short")
         self.assertEqual(by_logical["8"].rawBits, {"in": 1, "out": 0, "dg": 0})
+        self.assertEqual(by_logical["8"].statusCode, "short")
+        self.assertEqual(by_logical["8"].yellow_led, False)
+        self.assertEqual(by_logical["8"].red_led, True)
         self.assertEqual(by_logical["8"].message, "КЗ")
 
 

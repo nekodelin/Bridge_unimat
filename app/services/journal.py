@@ -84,6 +84,7 @@ class EventJournalService:
         raw_payload: dict[str, Any] | None = None,
     ) -> JournalEntry:
         journal_source = "mqtt" if source in {"mqtt", "mock"} else "system"
+        channel_label = self._resolve_channel_label(channel)
         base_message = channel.cause if channel.isFault and channel.cause else channel.message
         old_state = previous_state or "unknown"
         description = f"{channel.title}: {old_state} -> {channel.status}. {base_message}"
@@ -102,7 +103,7 @@ class EventJournalService:
             event_type="state_change",
             source=journal_source,
             element_key=channel.channelKey,
-            element_name=channel.title,
+            element_name=channel_label,
             previous_state=previous_state,
             new_state=channel.status,
             description=description,
@@ -116,6 +117,16 @@ class EventJournalService:
             message=base_message,
             action=channel.action,
         )
+
+    @staticmethod
+    def _resolve_channel_label(channel: ChannelState) -> str:
+        for candidate in (channel.logicalChannel, channel.rawChannel):
+            if candidate is None:
+                continue
+            token = str(candidate).strip().upper()
+            if len(token) == 1 and token in "0123456789ABCDEF":
+                return token
+        return format(int(channel.channelIndex), "X")
 
     async def append_event(
         self,

@@ -14,6 +14,16 @@ QL6C_BOARD = "B31"
 QL6C_UNIT = "U15"
 DEFAULT_QL6C_TOPIC = "puma_board"
 BIT_GROUP_WIDTH = 8
+CHANNEL_MAP = {
+    0: "6",
+    1: "7",
+    2: "8",
+    3: "9",
+    4: "A",
+    5: "B",
+    6: "C",
+    7: "D",
+}
 
 LEGACY_BIT_SOURCE_MAP = {
     "input": "in_",
@@ -25,7 +35,7 @@ FAULT_ACTION_TEXT = "Проверить фишку гидрораспредел�
 UNKNOWN_CAUSE_TEXT = "Комбинация сигналов не описана в таблице истинности"
 UNKNOWN_ACTION_TEXT = "Проверить корректность входных данных и схему подключения"
 
-QL6C_LOGICAL_CHANNELS = ("6", "7", "8", "9", "A", "B", "C", "D")
+QL6C_LOGICAL_CHANNELS = tuple(CHANNEL_MAP[index] for index in range(BIT_GROUP_WIDTH))
 QL6C_CHANNEL_META: dict[str, tuple[str, str]] = {
     "6": ("1s212b", "крюк слева выдвинуть"),
     "7": ("1s212a", "крюк слева задвинуть"),
@@ -43,12 +53,15 @@ logger = logging.getLogger("unimat.decoder")
 @dataclass(frozen=True, slots=True)
 class DecodedState:
     status: str
+    status_code: str
     label: str
     state_label: str
     description: str
     fault: bool
     severity: str
     fault_type: str | None
+    yellow_led: bool
+    red_led: bool
 
     @property
     def is_fault(self) -> bool:
@@ -101,51 +114,66 @@ def decode_triplet(input_bit: int, output_bit: int, diagnostic_bit: int) -> Deco
     if key == (0, 0, 1):
         return DecodedState(
             status="normal_off",
+            status_code="normal",
             label="Норма",
             state_label="Ключ выключен",
             description="Ключ выключен",
             fault=False,
             severity="info",
             fault_type=None,
+            yellow_led=False,
+            red_led=False,
         )
     if key == (1, 1, 1):
         return DecodedState(
             status="normal_on",
+            status_code="normal",
             label="Норма",
             state_label="Ключ включен",
             description="Ключ включен",
             fault=False,
             severity="info",
             fault_type=None,
+            yellow_led=True,
+            red_led=False,
         )
     if key in {(0, 1, 0), (1, 1, 0)}:
         return DecodedState(
             status="fault_break",
+            status_code="break",
             label="Обрыв",
             state_label="Обрыв",
             description="Обрыв",
             fault=True,
             severity="error",
             fault_type="break",
+            yellow_led=True,
+            red_led=True,
         )
     if key == (1, 0, 0):
         return DecodedState(
             status="fault_short",
+            status_code="short",
             label="КЗ",
             state_label="Короткое замыкание",
             description="Короткое замыкание",
             fault=True,
             severity="error",
             fault_type="short",
+            yellow_led=False,
+            red_led=True,
         )
     return DecodedState(
         status="unknown",
+        status_code="unknown",
         label="Неизвестно",
         state_label="Неизвестная комбинация сигналов",
         description="Неизвестная комбинация сигналов",
         fault=False,
         severity="warning",
         fault_type=None,
+        yellow_led=False,
+        red_led=False,
     )
 
 
@@ -214,10 +242,13 @@ class DecoderService:
                     output=0,
                     diagnostic=0,
                     status="inactive",
+                    statusCode=None,
                     statusLabel="Неактивно",
                     stateLabel="Неактивно",
                     label="Неактивно",
                     faultType=None,
+                    yellow_led=False,
+                    red_led=False,
                     message="Нет данных",
                     reason=None,
                     cause=None,
@@ -252,10 +283,13 @@ class DecoderService:
                     output=0,
                     diagnostic=0,
                     status="inactive",
+                    statusCode=None,
                     statusLabel="Неактивно",
                     stateLabel="Неактивно",
                     label="Неактивно",
                     faultType=None,
+                    yellow_led=False,
+                    red_led=False,
                     message="Нет данных",
                     reason=None,
                     cause=None,
@@ -333,6 +367,9 @@ class DecoderService:
                 "outputBit": item.output,
                 "diagnosticBit": item.diagnostic,
                 "status": item.status,
+                "statusCode": item.statusCode,
+                "yellow_led": item.yellow_led,
+                "red_led": item.red_led,
             }
             for item in decoded_channels
         ]
@@ -447,10 +484,13 @@ class DecoderService:
                     output=output_bit,
                     diagnostic=diagnostic_bit,
                     status=decoded_state.status,  # type: ignore[arg-type]
+                    statusCode=decoded_state.status_code,
                     statusLabel=decoded_state.status_label,
                     stateLabel=decoded_state.state_label,
                     label=decoded_state.label,
                     faultType=decoded_state.fault_type,  # type: ignore[arg-type]
+                    yellow_led=decoded_state.yellow_led,
+                    red_led=decoded_state.red_led,
                     message=text.message,
                     reason=text.reason,
                     cause=text.cause,
@@ -525,10 +565,13 @@ class DecoderService:
                     output=output_bit,
                     diagnostic=diagnostic_bit,
                     status=legacy_state.status,  # type: ignore[arg-type]
+                    statusCode=decoded_state.status_code,
                     statusLabel=legacy_state.status_label,
                     stateLabel=legacy_state.state_label,
                     label=legacy_state.label,
                     faultType=decoded_state.fault_type,  # type: ignore[arg-type]
+                    yellow_led=decoded_state.yellow_led,
+                    red_led=decoded_state.red_led,
                     message=legacy_state.description,
                     reason=cause,
                     cause=cause,
@@ -702,7 +745,7 @@ class DecoderService:
                     purpose=title,
                     source_topic=source_topic,
                     in_bit=ui_index + 1,
-                    out_bit=BIT_GROUP_WIDTH - ui_index,
+                    out_bit=ui_index + 1,
                     diagnostic_bit=ui_index + 1,
                     photo_index=photo_index_by_signal.get(signal_id),
                 )
@@ -714,49 +757,64 @@ class DecoderService:
         if decoded_state.status == "normal_on":
             return DecodedState(
                 status="normal",
+                status_code=decoded_state.status_code,
                 label="Норма",
                 state_label="Норма",
                 description="Ключ включен",
                 fault=False,
                 severity="info",
                 fault_type=None,
+                yellow_led=decoded_state.yellow_led,
+                red_led=decoded_state.red_led,
             )
         if decoded_state.status == "normal_off":
             return DecodedState(
                 status="normal",
+                status_code=decoded_state.status_code,
                 label="Норма",
                 state_label="Норма",
                 description="Ключ выключен",
                 fault=False,
                 severity="info",
                 fault_type=None,
+                yellow_led=decoded_state.yellow_led,
+                red_led=decoded_state.red_led,
             )
         if decoded_state.status == "fault_break":
             return DecodedState(
                 status="open_circuit",
+                status_code=decoded_state.status_code,
                 label="Обрыв",
                 state_label="Обрыв",
                 description="Обрыв цепи",
                 fault=True,
                 severity="error",
                 fault_type="break",
+                yellow_led=decoded_state.yellow_led,
+                red_led=decoded_state.red_led,
             )
         if decoded_state.status == "fault_short":
             return DecodedState(
                 status="short_circuit",
+                status_code=decoded_state.status_code,
                 label="КЗ",
                 state_label="КЗ",
                 description="Короткое замыкание / авария / термозащита",
                 fault=True,
                 severity="error",
                 fault_type="short",
+                yellow_led=decoded_state.yellow_led,
+                red_led=decoded_state.red_led,
             )
         return DecodedState(
             status="unknown",
+            status_code=decoded_state.status_code,
             label="Неизвестно",
             state_label="Неизвестно",
             description="Неизвестная комбинация сигналов",
             fault=False,
             severity="warning",
             fault_type=None,
+            yellow_led=decoded_state.yellow_led,
+            red_led=decoded_state.red_led,
         )

@@ -18,6 +18,7 @@ ChannelStatus = Literal[
 ]
 SeverityLevel = Literal["info", "warning", "error"]
 FaultType = Literal["break", "short"]
+ComputedStatus = Literal["normal", "break", "short", "unknown"]
 
 
 class ChannelState(BaseModel):
@@ -39,10 +40,13 @@ class ChannelState(BaseModel):
     output: int
     diagnostic: int
     status: ChannelStatus
+    statusCode: ComputedStatus | None = None
     statusLabel: str | None = None
     stateLabel: str
     label: str | None = None
     faultType: FaultType | None = None
+    yellow_led: bool | None = None
+    red_led: bool | None = None
     message: str
     reason: str | None = None
     cause: str | None = None
