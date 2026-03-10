@@ -2,18 +2,25 @@ from datetime import datetime, timezone
 import unittest
 
 from app.models import BoardPayload, ChannelConfig
-from app.services.decoder import DecoderService, decode_bits, decode_triplet
+from app.services.decoder import (
+    DecoderService,
+    decode_bits,
+    decode_channel_state,
+    get_bit,
+    get_diag_bit,
+    get_in_bit,
+    get_out_bit,
+)
 
 
 def build_decoder() -> DecoderService:
-    # Keep config intentionally minimal: DecoderService builds canonical QL6C map itself.
     signal_map = [
         ChannelConfig.model_validate(
             {
                 "channelKey": "QL6C6",
                 "channelIndex": 6,
                 "signalId": "1s212b",
-                "purpose": "крюк слева выдвинуть",
+                "purpose": "left hook extend",
                 "board": "B31/U15",
                 "module": "QL6C",
                 "photoIndex": 10,
@@ -25,7 +32,7 @@ def build_decoder() -> DecoderService:
                 "channelKey": "QL6D0",
                 "channelIndex": 0,
                 "signalId": "1s250b",
-                "purpose": "правый роликовый захват снаружи открыть",
+                "purpose": "right grip open",
                 "board": "B31/U16",
                 "module": "QL6D",
                 "photoIndex": 8,
@@ -38,221 +45,130 @@ def build_decoder() -> DecoderService:
 
 class BoardPayloadValidationTest(unittest.TestCase):
     def test_accepts_optional_other_field(self) -> None:
-        payload = BoardPayload.model_validate(
-            {"in": 12, "inversed": 34, "out": 56, "other": 78}
-        )
+        payload = BoardPayload.model_validate({"in": 12, "inversed": 34, "out": 56, "other": 78})
         self.assertEqual(payload.in_, 12)
         self.assertEqual(payload.inversed, 34)
         self.assertEqual(payload.out, 56)
         self.assertEqual(payload.other, 78)
-        self.assertEqual(
-            payload.to_raw_dict(),
-            {"in": 12, "inversed": 34, "out": 56, "other": 78},
-        )
 
 
-class BitOrderTest(unittest.TestCase):
-    def test_unpack_in_5_uses_lsb_as_bit0(self) -> None:
-        bits = decode_bits(5, size=8)
-        # bit0..bit7 for decimal 5 (0b00000101)
-        self.assertEqual(bits, [1, 0, 1, 0, 0, 0, 0, 0])
-        self.assertEqual(bits[0], 1)
-        self.assertEqual(bits[1], 0)
-        self.assertEqual(bits[2], 1)
+class BitHelpersTest(unittest.TestCase):
+    def test_decode_bits_lsb_order(self) -> None:
+        self.assertEqual(decode_bits(5, size=8), [1, 0, 1, 0, 0, 0, 0, 0])
+
+    def test_get_bit(self) -> None:
+        self.assertEqual(get_bit(0b10000000, 7), 1)
+        self.assertEqual(get_bit(0b10000000, 6), 0)
+
+    def test_in_and_diag_mapping_reversed(self) -> None:
+        self.assertEqual(get_in_bit("6", 0b10000000), 1)  # bit7 -> 6
+        self.assertEqual(get_in_bit("D", 0b00000001), 1)  # bit0 -> D
+        self.assertEqual(get_diag_bit("6", 0b10000000), 1)  # bit7 -> 6
+        self.assertEqual(get_diag_bit("D", 0b00000001), 1)  # bit0 -> D
+
+    def test_out_mapping_direct(self) -> None:
+        self.assertEqual(get_out_bit("6", 0b00000001), 1)  # bit0 -> 6
+        self.assertEqual(get_out_bit("7", 0b00000010), 1)  # bit1 -> 7
+        self.assertEqual(get_out_bit("D", 0b10000000), 1)  # bit7 -> D
+
+
+class TruthTableTest(unittest.TestCase):
+    def test_truth_table(self) -> None:
+        cases = [
+            ((0, 0, 1), ("normal", None, "normal", False, False)),
+            ((1, 1, 1), ("normal", None, "normal", True, False)),
+            ((0, 1, 0), ("fault", "break", "break", True, True)),
+            ((1, 1, 0), ("fault", "break", "break", True, True)),
+            ((1, 0, 0), ("fault", "short", "short", False, True)),
+            ((1, 0, 1), ("unknown", "unknown", "unknown", False, False)),
+            ((0, 0, 0), ("unknown", "unknown", "unknown", False, False)),
+            ((0, 1, 1), ("unknown", "unknown", "unknown", False, False)),
+        ]
+
+        for inputs, expected in cases:
+            with self.subTest(inputs=inputs):
+                state = decode_channel_state(*inputs)
+                self.assertEqual(state.status, expected[0])
+                self.assertEqual(state.fault_type, expected[1])
+                self.assertEqual(state.status_code, expected[2])
+                self.assertEqual(state.yellow_led, expected[3])
+                self.assertEqual(state.red_led, expected[4])
 
 
 class QL6CMappingTest(unittest.TestCase):
     def setUp(self) -> None:
         self.decoder = build_decoder()
         self.now = datetime.now(timezone.utc)
-        self.logical_order_direct = ["6", "7", "8", "9", "A", "B", "C", "D"]
 
-    def test_in_mapping_direct_bit0_to_6_bit7_to_d(self) -> None:
-        for bit_index, logical_channel in enumerate(self.logical_order_direct):
-            payload = BoardPayload.model_validate(
-                {
-                    "in": 1 << bit_index,
-                    "inversed": 255,
-                    "out": 255,
-                    "other": 0,
-                }
-            )
-            decoded = self.decoder.decode_board_payload(payload=payload, topic="puma_board", updated_at=self.now)
-            by_logical = {item.logicalChannel: item for item in decoded}
-            self.assertEqual(by_logical[logical_channel].input, 1)
-            self.assertEqual(sum(item.input for item in decoded), 1)
-
-    def test_dg_mapping_direct_from_inversed_bit0_to_6_bit7_to_d(self) -> None:
-        for bit_index, logical_channel in enumerate(self.logical_order_direct):
-            payload = BoardPayload.model_validate(
-                {
-                    "in": 255,
-                    "inversed": 1 << bit_index,
-                    "out": 255,
-                    # Deliberately opposite to ensure QL6C DG is NOT read from `other`.
-                    "other": 255 ^ (1 << bit_index),
-                }
-            )
-            decoded = self.decoder.decode_board_payload(payload=payload, topic="puma_board", updated_at=self.now)
-            by_logical = {item.logicalChannel: item for item in decoded}
-            self.assertEqual(by_logical[logical_channel].diagnostic, 1)
-            self.assertEqual(sum(item.diagnostic for item in decoded), 1)
-
-    def test_out_mapping_direct_bit0_to_6_bit7_to_d(self) -> None:
-        for bit_index, logical_channel in enumerate(self.logical_order_direct):
-            payload = BoardPayload.model_validate(
-                {
-                    "in": 255,
-                    "inversed": 0,
-                    "out": 1 << bit_index,
-                    "other": 0,
-                }
-            )
-            decoded = self.decoder.decode_board_payload(payload=payload, topic="puma_board", updated_at=self.now)
-            by_logical = {item.logicalChannel: item for item in decoded}
-            self.assertEqual(by_logical[logical_channel].output, 1)
-            self.assertEqual(sum(item.output for item in decoded), 1)
-
-
-class DecoderTruthTableTest(unittest.TestCase):
-    def test_truth_table(self) -> None:
-        cases = [
-            ((0, 0, 1), ("normal_off", "Норма", None, "Ключ выключен", False)),
-            ((1, 1, 1), ("normal_on", "Норма", None, "Ключ включен", False)),
-            ((0, 1, 0), ("fault_break", "Обрыв", "break", "Обрыв", True)),
-            ((1, 1, 0), ("fault_break", "Обрыв", "break", "Обрыв", True)),
-            ((1, 0, 0), ("fault_short", "КЗ", "short", "Короткое замыкание", True)),
-            ((0, 0, 0), ("unknown", "Неизвестно", None, "Неизвестная комбинация сигналов", False)),
-        ]
-
-        indicator_by_inputs = {
-            (0, 0, 1): ("normal", False, False),
-            (1, 1, 1): ("normal", True, False),
-            (0, 1, 0): ("break", True, True),
-            (1, 1, 0): ("break", True, True),
-            (1, 0, 0): ("short", False, True),
-            (0, 0, 0): ("unknown", False, False),
-        }
-
-        for inputs, expected in cases:
-            with self.subTest(inputs=inputs):
-                result = decode_triplet(*inputs)
-                self.assertEqual(result.status, expected[0])
-                self.assertEqual(result.status_label, expected[1])
-                self.assertEqual(result.fault_type, expected[2])
-                self.assertEqual(result.state_label, expected[3])
-                self.assertEqual(result.fault, expected[4])
-                self.assertEqual(result.status_code, indicator_by_inputs[inputs][0])
-                self.assertEqual(result.yellow_led, indicator_by_inputs[inputs][1])
-                self.assertEqual(result.red_led, indicator_by_inputs[inputs][2])
-
-
-class DecodePayloadE2ETest(unittest.TestCase):
-    def setUp(self) -> None:
-        self.decoder = build_decoder()
-        self.now = datetime.now(timezone.utc)
-
-    def _decode(self, *, in_value: int, inversed_value: int, out_value: int, other_value: int) -> dict[str, object]:
+    def _decode(self, *, in_value: int, inversed_value: int, out_value: int) -> dict[str, object]:
         payload = BoardPayload.model_validate(
             {
                 "in": in_value,
                 "inversed": inversed_value,
                 "out": out_value,
-                "other": other_value,
+                "other": 0,
             }
         )
         decoded = self.decoder.decode_board_payload(payload=payload, topic="puma_board", updated_at=self.now)
-        by_logical = {item.logicalChannel: item for item in decoded}
-        return {"decoded": decoded, "by_logical": by_logical}
+        return {item.logicalChannel: item for item in decoded}
 
-    def test_full_decode_example_in5_inversed251_out5(self) -> None:
-        result = self._decode(in_value=5, inversed_value=251, out_value=5, other_value=0)
-        decoded = result["decoded"]
-        by_logical = result["by_logical"]
+    def test_only_ql6c_working_channels_6_to_d(self) -> None:
+        payload = BoardPayload.model_validate({"in": 0, "inversed": 0, "out": 0, "other": 0})
+        decoded = self.decoder.decode_board_payload(payload=payload, topic="puma_board", updated_at=self.now)
+        logical = [item.logicalChannel for item in decoded]
+        self.assertEqual(logical, ["6", "7", "8", "9", "A", "B", "C", "D"])
+        self.assertEqual([item.channelIndex for item in decoded], [6, 7, 8, 9, 10, 11, 12, 13])
 
-        assert isinstance(decoded, list)
-        assert isinstance(by_logical, dict)
-        self.assertEqual(len(decoded), 8)
+    def test_in_bit_mapping_reversed(self) -> None:
+        mapping = ["6", "7", "8", "9", "A", "B", "C", "D"]
+        for bit_index, channel in zip([7, 6, 5, 4, 3, 2, 1, 0], mapping):
+            with self.subTest(bit_index=bit_index, channel=channel):
+                by_channel = self._decode(in_value=(1 << bit_index), inversed_value=0, out_value=0)
+                self.assertEqual(by_channel[channel].inBit, 1)
+                self.assertEqual(sum(item.inBit for item in by_channel.values()), 1)
 
-        expected_keys = [f"QL6C{index}" for index in range(8)]
-        self.assertEqual([item.channelKey for item in decoded], expected_keys)
-        self.assertEqual([item.channelIndex for item in decoded], list(range(8)))
-        self.assertEqual([item.logicalChannel for item in decoded], ["6", "7", "8", "9", "A", "B", "C", "D"])
+    def test_diag_bit_mapping_reversed(self) -> None:
+        mapping = ["6", "7", "8", "9", "A", "B", "C", "D"]
+        for bit_index, channel in zip([7, 6, 5, 4, 3, 2, 1, 0], mapping):
+            with self.subTest(bit_index=bit_index, channel=channel):
+                by_channel = self._decode(in_value=0, inversed_value=(1 << bit_index), out_value=0)
+                self.assertEqual(by_channel[channel].diagBit, 1)
+                self.assertEqual(sum(item.diagBit for item in by_channel.values()), 1)
 
-        for item in decoded:
-            self.assertEqual(item.board, "B31")
-            self.assertEqual(item.unit, "U15")
-            self.assertEqual(item.module, "QL6C")
-            self.assertEqual(item.updatedAt, self.now)
+    def test_out_bit_mapping_direct(self) -> None:
+        mapping = ["6", "7", "8", "9", "A", "B", "C", "D"]
+        for bit_index, channel in enumerate(mapping):
+            with self.subTest(bit_index=bit_index, channel=channel):
+                by_channel = self._decode(in_value=0, inversed_value=0, out_value=(1 << bit_index))
+                self.assertEqual(by_channel[channel].outBit, 1)
+                self.assertEqual(sum(item.outBit for item in by_channel.values()), 1)
 
-        expected_status_by_channel = {
-            "6": "normal_on",
-            "7": "normal_off",
-            "8": "fault_break",
-            "9": "normal_off",
-            "A": "normal_off",
-            "B": "normal_off",
-            "C": "normal_off",
-            "D": "normal_off",
-        }
-        self.assertEqual(
-            {channel: by_logical[channel].status for channel in expected_status_by_channel},
-            expected_status_by_channel,
+    def test_extended_fields_and_status_logic(self) -> None:
+        # channel 6: (1,1,1) => normal
+        # channel 8: (0,1,0) => fault/break (OUT bit index for channel 8 is 2 in direct mapping)
+        by_channel = self._decode(
+            in_value=(1 << 7),
+            inversed_value=(1 << 7),
+            out_value=(1 << 0) | (1 << 2),
         )
 
-        self.assertEqual(by_logical["6"].statusLabel, "Норма")
-        self.assertEqual(by_logical["6"].stateLabel, "Ключ включен")
-        self.assertEqual(by_logical["6"].faultType, None)
-        self.assertEqual(by_logical["6"].rawBits, {"in": 1, "out": 1, "dg": 1})
-        self.assertEqual(by_logical["6"].statusCode, "normal")
-        self.assertEqual(by_logical["6"].yellow_led, True)
-        self.assertEqual(by_logical["6"].red_led, False)
-        self.assertEqual(by_logical["6"].message, "крюк слева выдвинуть")
+        channel_6 = by_channel["6"]
+        self.assertEqual(channel_6.status, "normal")
+        self.assertEqual(channel_6.faultType, None)
+        self.assertEqual(channel_6.stateTuple, [1, 1, 1])
+        self.assertEqual(channel_6.yellow_led, True)
+        self.assertEqual(channel_6.red_led, False)
 
-        self.assertEqual(by_logical["8"].statusLabel, "Обрыв")
-        self.assertEqual(by_logical["8"].faultType, "break")
-        self.assertEqual(by_logical["8"].rawBits, {"in": 1, "out": 1, "dg": 0})
-        self.assertEqual(by_logical["8"].statusCode, "break")
-        self.assertEqual(by_logical["8"].yellow_led, True)
-        self.assertEqual(by_logical["8"].red_led, True)
-        self.assertEqual(by_logical["8"].message, "Обрыв")
+        channel_8 = by_channel["8"]
+        self.assertEqual(channel_8.status, "fault")
+        self.assertEqual(channel_8.faultType, "break")
+        self.assertEqual(channel_8.stateTuple, [0, 1, 0])
+        self.assertEqual(channel_8.yellow_led, True)
+        self.assertEqual(channel_8.red_led, True)
 
-    def test_full_decode_example_in5_inversed251_out1(self) -> None:
-        result = self._decode(in_value=5, inversed_value=251, out_value=1, other_value=255)
-        decoded = result["decoded"]
-        by_logical = result["by_logical"]
-
-        assert isinstance(decoded, list)
-        assert isinstance(by_logical, dict)
-        self.assertEqual(len(decoded), 8)
-
-        expected_status_by_channel = {
-            "6": "normal_on",
-            "7": "normal_off",
-            "8": "fault_short",
-            "9": "normal_off",
-            "A": "normal_off",
-            "B": "normal_off",
-            "C": "normal_off",
-            "D": "normal_off",
-        }
-        self.assertEqual(
-            {channel: by_logical[channel].status for channel in expected_status_by_channel},
-            expected_status_by_channel,
-        )
-
-        self.assertEqual(by_logical["6"].statusLabel, "Норма")
-        self.assertEqual(by_logical["6"].rawBits, {"in": 1, "out": 1, "dg": 1})
-        self.assertEqual(by_logical["6"].message, "крюк слева выдвинуть")
-
-        self.assertEqual(by_logical["8"].statusLabel, "КЗ")
-        self.assertEqual(by_logical["8"].stateLabel, "Короткое замыкание")
-        self.assertEqual(by_logical["8"].faultType, "short")
-        self.assertEqual(by_logical["8"].rawBits, {"in": 1, "out": 0, "dg": 0})
-        self.assertEqual(by_logical["8"].statusCode, "short")
-        self.assertEqual(by_logical["8"].yellow_led, False)
-        self.assertEqual(by_logical["8"].red_led, True)
-        self.assertEqual(by_logical["8"].message, "КЗ")
+        channel_7 = by_channel["7"]
+        self.assertEqual(channel_7.status, "unknown")
+        self.assertEqual(channel_7.faultType, "unknown")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 ChannelStatus = Literal[
     "normal",
+    "fault",
     "active",
     "normal_on",
     "normal_off",
@@ -17,7 +18,7 @@ ChannelStatus = Literal[
     "unknown",
 ]
 SeverityLevel = Literal["info", "warning", "error"]
-FaultType = Literal["break", "short"]
+FaultType = Literal["break", "short", "unknown"]
 ComputedStatus = Literal["normal", "break", "short", "unknown"]
 
 
@@ -43,8 +44,13 @@ class ChannelState(BaseModel):
     statusCode: ComputedStatus | None = None
     statusLabel: str | None = None
     stateLabel: str
+    stateText: str | None = None
     label: str | None = None
     faultType: FaultType | None = None
+    inBit: int | None = None
+    outBit: int | None = None
+    diagBit: int | None = None
+    stateTuple: list[int] | None = None
     yellow_led: bool | None = None
     red_led: bool | None = None
     message: str

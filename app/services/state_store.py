@@ -4,8 +4,8 @@ from datetime import datetime
 from app.models import ModuleGroupConfig
 from app.schemas import AggregatesSnapshot, ChannelState, StateSnapshot, SummarySnapshot
 
-FAULT_STATUSES = {"open_circuit", "breakage", "short_circuit", "fault_break", "fault_short"}
-NORMAL_STATUSES = {"normal", "active", "normal_on", "normal_off"}
+FAULT_STATUSES = {"fault"}
+NORMAL_STATUSES = {"normal"}
 
 
 class StateStore:
@@ -165,6 +165,6 @@ def _merge_status(statuses: list[str]) -> str:
         return "inactive"
     if any(status == "unknown" for status in statuses):
         return "unknown"
-    if all(status in NORMAL_STATUSES.union({"inactive", "normal"}) for status in statuses):
+    if all(status in NORMAL_STATUSES.union({"inactive"}) for status in statuses):
         return "normal"
     return "unknown"
