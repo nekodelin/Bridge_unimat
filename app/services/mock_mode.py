@@ -38,10 +38,10 @@ class MockModeService:
 
     async def _run_loop(self) -> None:
         steps = [
-            {"in": 0b11111111, "inversed": 0b00000000, "out": 0b00000000},  # normal off
-            {"in": 0b11111111, "inversed": 0b11111111, "out": 0b11111111},  # normal on
-            {"in": 0b00010000, "inversed": 0b00000000, "out": 0b00010000},  # breakage sample
-            {"in": 0b00010000, "inversed": 0b00010000, "out": 0b00000000},  # short sample
+            {"in": 0b00000000, "inversed": 0b11111111, "out": 0b00000000, "other": 0b00000000},  # normal off
+            {"in": 0b11111111, "inversed": 0b11111111, "out": 0b11111111, "other": 0b11111111},  # normal on
+            {"in": 0b00000000, "inversed": 0b00000000, "out": 0b00000001, "other": 0b11111111},  # breakage sample
+            {"in": 0b00000001, "inversed": 0b00000000, "out": 0b00000000, "other": 0b11111111},  # short sample
         ]
         index = 0
 

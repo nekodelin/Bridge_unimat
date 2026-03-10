@@ -4,8 +4,8 @@ from datetime import datetime
 from app.models import ModuleGroupConfig
 from app.schemas import AggregatesSnapshot, ChannelState, StateSnapshot, SummarySnapshot
 
-FAULT_STATUSES = {"open_circuit", "breakage", "short_circuit"}
-NORMAL_STATUSES = {"normal", "active"}
+FAULT_STATUSES = {"open_circuit", "breakage", "short_circuit", "fault_break", "fault_short"}
+NORMAL_STATUSES = {"normal", "active", "normal_on", "normal_off"}
 
 
 class StateStore:

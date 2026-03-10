@@ -6,13 +6,18 @@ from pydantic import BaseModel, ConfigDict, Field
 ChannelStatus = Literal[
     "normal",
     "active",
+    "normal_on",
+    "normal_off",
     "open_circuit",
     "breakage",
     "short_circuit",
+    "fault_break",
+    "fault_short",
     "inactive",
     "unknown",
 ]
 SeverityLevel = Literal["info", "warning", "error"]
+FaultType = Literal["break", "short"]
 
 
 class ChannelState(BaseModel):
@@ -27,17 +32,26 @@ class ChannelState(BaseModel):
     board: str
     unit: str | None = None
     module: str
+    logicalChannel: str | None = None
+    rawChannel: str | None = None
     topic: str | None = None
     input: int
     output: int
     diagnostic: int
     status: ChannelStatus
+    statusLabel: str | None = None
     stateLabel: str
+    label: str | None = None
+    faultType: FaultType | None = None
     message: str
+    reason: str | None = None
     cause: str | None = None
     action: str | None = None
     severity: SeverityLevel
+    fault: bool | None = None
     isFault: bool
+    raw: dict[str, int] | None = None
+    rawBits: dict[str, int] | None = None
     updatedAt: datetime | None = None
 
 

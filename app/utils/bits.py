@@ -1,6 +1,27 @@
 from collections.abc import Sequence
 
 
+def unpack_bits(value: int, width: int = 8) -> dict[int, int]:
+    """Unpack an integer bitmask into a 1-based bit dictionary.
+
+    Rule:
+    - `bit1` is the least-significant bit (LSB).
+    - `bitN` is `(value >> (N-1)) & 1`.
+    """
+    normalized_width = int(width)
+    if normalized_width <= 0:
+        return {}
+
+    normalized_value = int(value)
+    if normalized_value < 0:
+        normalized_value &= (1 << normalized_width) - 1
+
+    return {
+        bit_index + 1: (normalized_value >> bit_index) & 1
+        for bit_index in range(normalized_width)
+    }
+
+
 def normalize_channel_index(channel_index: int | str) -> int:
     if isinstance(channel_index, int):
         return channel_index
