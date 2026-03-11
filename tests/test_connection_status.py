@@ -1,7 +1,12 @@
 from datetime import UTC, datetime, timedelta
 import unittest
 
-from app.services.connection_status import ConnectionStatusContext, evaluate_connection_statuses
+from app.schemas import ConnectionStatusItem
+from app.services.connection_status import (
+    ConnectionStatusContext,
+    build_connection_diagnosis,
+    evaluate_connection_statuses,
+)
 
 
 class ConnectionStatusTest(unittest.TestCase):
@@ -92,6 +97,66 @@ class ConnectionStatusTest(unittest.TestCase):
         by_key = self._map_by_key(statuses)
         self.assertEqual(by_key["board_online"].state, "unknown")
         self.assertEqual(by_key["incoming_data"].state, "ok")
+
+
+class ConnectionDiagnosisTest(unittest.TestCase):
+    def _statuses(
+        self,
+        *,
+        board_online: str = "ok",
+        incoming_data: str = "ok",
+        backend_available: str = "ok",
+        interface_updates: str = "ok",
+        data_fresh: str = "ok",
+    ) -> list[ConnectionStatusItem]:
+        return [
+            ConnectionStatusItem(key="board_online", label="board_online", state=board_online),
+            ConnectionStatusItem(key="incoming_data", label="incoming_data", state=incoming_data),
+            ConnectionStatusItem(key="backend_available", label="backend_available", state=backend_available),
+            ConnectionStatusItem(key="interface_updates", label="interface_updates", state=interface_updates),
+            ConnectionStatusItem(key="data_fresh", label="data_fresh", state=data_fresh),
+        ]
+
+    def test_board_unavailable_rule(self) -> None:
+        diagnosis = build_connection_diagnosis(self._statuses(board_online="error"))
+        self.assertEqual(diagnosis.problemTitle, "Плата недоступна")
+        self.assertEqual(diagnosis.severity, "error")
+
+    def test_no_orange_data_rule(self) -> None:
+        diagnosis = build_connection_diagnosis(self._statuses(incoming_data="error"))
+        self.assertEqual(diagnosis.problemTitle, "Нет данных от Orange")
+        self.assertEqual(diagnosis.severity, "error")
+
+    def test_backend_unavailable_rule(self) -> None:
+        diagnosis = build_connection_diagnosis(self._statuses(backend_available="error"))
+        self.assertEqual(diagnosis.problemTitle, "Сервер недоступен")
+        self.assertEqual(diagnosis.severity, "error")
+
+    def test_ui_updates_rule(self) -> None:
+        diagnosis = build_connection_diagnosis(self._statuses(interface_updates="error"))
+        self.assertEqual(diagnosis.problemTitle, "Данные не доходят до веб-интерфейса")
+        self.assertEqual(diagnosis.severity, "error")
+
+    def test_data_stale_warn_rule(self) -> None:
+        diagnosis = build_connection_diagnosis(self._statuses(data_fresh="warn"))
+        self.assertEqual(diagnosis.problemTitle, "Данные устарели")
+        self.assertEqual(diagnosis.severity, "warn")
+
+    def test_data_stale_error_rule(self) -> None:
+        diagnosis = build_connection_diagnosis(self._statuses(data_fresh="error"))
+        self.assertEqual(diagnosis.problemTitle, "Данные устарели")
+        self.assertEqual(diagnosis.severity, "error")
+
+    def test_unknown_rule(self) -> None:
+        diagnosis = build_connection_diagnosis(self._statuses(board_online="unknown"))
+        self.assertEqual(diagnosis.problemTitle, "Недостаточно данных для диагностики")
+        self.assertEqual(diagnosis.severity, "warn")
+
+    def test_ok_rule(self) -> None:
+        diagnosis = build_connection_diagnosis(self._statuses())
+        self.assertEqual(diagnosis.problemTitle, "Не обнаружена")
+        self.assertEqual(diagnosis.recommendedAction, "Система работает штатно")
+        self.assertEqual(diagnosis.severity, "ok")
 
 
 if __name__ == "__main__":

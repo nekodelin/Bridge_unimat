@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.schemas import ConnectionStatusItem
+from app.schemas import ConnectionDiagnosis, ConnectionStatusItem
 
 DATA_OK_AGE_SEC = 10
 DATA_WARN_AGE_SEC = 30
@@ -18,6 +18,28 @@ LABEL_INCOMING_DATA = "\u0415\u0441\u0442\u044c \u0432\u0445\u043e\u0434\u044f\u
 LABEL_BACKEND_AVAILABLE = "\u0411\u0435\u043a\u0435\u043d\u0434 \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d"
 LABEL_INTERFACE_UPDATES = "\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f \u0434\u043e\u0445\u043e\u0434\u044f\u0442 \u0434\u043e \u0438\u043d\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430"
 LABEL_DATA_FRESH = "\u0414\u0430\u043d\u043d\u044b\u0435 \u0441\u0432\u0435\u0436\u0438\u0435"
+PROBLEM_BOARD_UNAVAILABLE = "\u041f\u043b\u0430\u0442\u0430 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0430"
+ACTION_BOARD_UNAVAILABLE = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u043f\u0438\u0442\u0430\u043d\u0438\u0435 \u043f\u043b\u0430\u0442\u044b, \u043a\u0430\u0431\u0435\u043b\u044c \u0438 \u043f\u0435\u0440\u0435\u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435"
+PROBLEM_NO_ORANGE_DATA = "\u041d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445 \u043e\u0442 Orange"
+ACTION_NO_ORANGE_DATA = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c Orange, \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0435 \u0441 \u043f\u043b\u0430\u0442\u043e\u0439 \u0438 \u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0443 \u0434\u0430\u043d\u043d\u044b\u0445 \u043d\u0430 \u0441\u0435\u0440\u0432\u0435\u0440"
+PROBLEM_SERVER_UNAVAILABLE = "\u0421\u0435\u0440\u0432\u0435\u0440 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d"
+ACTION_SERVER_UNAVAILABLE = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0441\u0435\u0440\u0432\u0435\u0440, \u0441\u0435\u0440\u0432\u0438\u0441\u044b \u0438 \u0441\u0435\u0442\u044c \u0441\u0435\u0440\u0432\u0435\u0440\u0430"
+PROBLEM_UI_UPDATES_BLOCKED = "\u0414\u0430\u043d\u043d\u044b\u0435 \u043d\u0435 \u0434\u043e\u0445\u043e\u0434\u044f\u0442 \u0434\u043e \u0432\u0435\u0431-\u0438\u043d\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430"
+ACTION_UI_UPDATES_BLOCKED = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u043a\u0430\u043d\u0430\u043b \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0439 \u0438 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0432\u0435\u0431-\u0438\u043d\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430"
+PROBLEM_DATA_STALE = "\u0414\u0430\u043d\u043d\u044b\u0435 \u0443\u0441\u0442\u0430\u0440\u0435\u043b\u0438"
+ACTION_DATA_STALE = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0437\u0430\u0434\u0435\u0440\u0436\u043a\u0443 \u043e\u0431\u043c\u0435\u043d\u0430 \u0438 \u043a\u0430\u043d\u0430\u043b \u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0438 \u0434\u0430\u043d\u043d\u044b\u0445"
+PROBLEM_NOT_DETECTED = "\u041d\u0435 \u043e\u0431\u043d\u0430\u0440\u0443\u0436\u0435\u043d\u0430"
+ACTION_SYSTEM_OK = "\u0421\u0438\u0441\u0442\u0435\u043c\u0430 \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442 \u0448\u0442\u0430\u0442\u043d\u043e"
+PROBLEM_NOT_ENOUGH_DATA = "\u041d\u0435\u0434\u043e\u0441\u0442\u0430\u0442\u043e\u0447\u043d\u043e \u0434\u0430\u043d\u043d\u044b\u0445 \u0434\u043b\u044f \u0434\u0438\u0430\u0433\u043d\u043e\u0441\u0442\u0438\u043a\u0438"
+ACTION_NOT_ENOUGH_DATA = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u043f\u043e\u0441\u0442\u0443\u043f\u043b\u0435\u043d\u0438\u0435 \u0442\u0435\u043b\u0435\u043c\u0435\u0442\u0440\u0438\u0438 \u0438 \u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435 \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u044f"
+
+REQUIRED_STATUS_KEYS = (
+    "board_online",
+    "incoming_data",
+    "backend_available",
+    "interface_updates",
+    "data_fresh",
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -45,6 +67,75 @@ def evaluate_connection_statuses(
         _build_data_fresh_status(context=context, data_age_sec=data_age_sec),
     ]
     return statuses, data_age_sec
+
+
+def build_connection_diagnosis(statuses: list[ConnectionStatusItem]) -> ConnectionDiagnosis:
+    state_by_key = {item.key: item.state for item in statuses}
+    if any(key not in state_by_key for key in REQUIRED_STATUS_KEYS):
+        return _diagnosis_unknown()
+
+    board_state = state_by_key["board_online"]
+    incoming_state = state_by_key["incoming_data"]
+    backend_state = state_by_key["backend_available"]
+    interface_state = state_by_key["interface_updates"]
+    fresh_state = state_by_key["data_fresh"]
+
+    if board_state in {STATUS_ERROR, STATUS_WARN}:
+        return ConnectionDiagnosis(
+            problemTitle=PROBLEM_BOARD_UNAVAILABLE,
+            recommendedAction=ACTION_BOARD_UNAVAILABLE,
+            severity=STATUS_ERROR,
+        )
+    if board_state == STATUS_UNKNOWN:
+        return _diagnosis_unknown()
+
+    if incoming_state == STATUS_ERROR:
+        return ConnectionDiagnosis(
+            problemTitle=PROBLEM_NO_ORANGE_DATA,
+            recommendedAction=ACTION_NO_ORANGE_DATA,
+            severity=STATUS_ERROR,
+        )
+    if incoming_state == STATUS_UNKNOWN:
+        return _diagnosis_unknown()
+
+    if backend_state in {STATUS_ERROR, STATUS_WARN}:
+        return ConnectionDiagnosis(
+            problemTitle=PROBLEM_SERVER_UNAVAILABLE,
+            recommendedAction=ACTION_SERVER_UNAVAILABLE,
+            severity=STATUS_ERROR,
+        )
+    if backend_state == STATUS_UNKNOWN:
+        return _diagnosis_unknown()
+
+    if interface_state in {STATUS_ERROR, STATUS_WARN}:
+        return ConnectionDiagnosis(
+            problemTitle=PROBLEM_UI_UPDATES_BLOCKED,
+            recommendedAction=ACTION_UI_UPDATES_BLOCKED,
+            severity=STATUS_ERROR,
+        )
+    if interface_state == STATUS_UNKNOWN:
+        return _diagnosis_unknown()
+
+    if fresh_state == STATUS_ERROR:
+        return ConnectionDiagnosis(
+            problemTitle=PROBLEM_DATA_STALE,
+            recommendedAction=ACTION_DATA_STALE,
+            severity=STATUS_ERROR,
+        )
+    if fresh_state == STATUS_WARN:
+        return ConnectionDiagnosis(
+            problemTitle=PROBLEM_DATA_STALE,
+            recommendedAction=ACTION_DATA_STALE,
+            severity=STATUS_WARN,
+        )
+    if fresh_state == STATUS_UNKNOWN:
+        return _diagnosis_unknown()
+
+    return ConnectionDiagnosis(
+        problemTitle=PROBLEM_NOT_DETECTED,
+        recommendedAction=ACTION_SYSTEM_OK,
+        severity=STATUS_OK,
+    )
 
 
 def _build_board_online_status(
@@ -196,3 +287,11 @@ def _age_seconds(now_value: datetime, value: datetime | None) -> int | None:
         return None
     age = int((now_value - value).total_seconds())
     return age if age >= 0 else 0
+
+
+def _diagnosis_unknown() -> ConnectionDiagnosis:
+    return ConnectionDiagnosis(
+        problemTitle=PROBLEM_NOT_ENOUGH_DATA,
+        recommendedAction=ACTION_NOT_ENOUGH_DATA,
+        severity=STATUS_WARN,
+    )

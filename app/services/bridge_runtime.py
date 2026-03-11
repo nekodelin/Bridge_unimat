@@ -4,9 +4,13 @@ from datetime import UTC, datetime
 
 from app.config import ConfigBundle, Settings
 from app.models import ActPayload, BoardPayload
-from app.schemas import ChannelState, ConnectionStatusItem, JournalEntry, StateSnapshot
+from app.schemas import ConnectionDiagnosis, ChannelState, ConnectionStatusItem, JournalEntry, StateSnapshot
 from app.services.broadcaster import WebSocketBroadcaster
-from app.services.connection_status import ConnectionStatusContext, evaluate_connection_statuses
+from app.services.connection_status import (
+    ConnectionStatusContext,
+    build_connection_diagnosis,
+    evaluate_connection_statuses,
+)
 from app.services.decoder import DecoderService
 from app.services.journal import EventJournalService
 from app.services.state_store import StateStore
@@ -364,10 +368,16 @@ class BridgeRuntime:
         await self._mark_realtime_publish()
 
     async def _enrich_snapshot(self, snapshot: StateSnapshot) -> StateSnapshot:
-        statuses, last_exchange_at, last_data_at, data_age_sec = await self._build_connection_status_block()
+        statuses, last_exchange_at, last_data_at, data_age_sec, diagnosis = (
+            await self._build_connection_status_block()
+        )
         return snapshot.model_copy(
             update={
                 "connectionStatuses": statuses,
+                "problemTitle": diagnosis.problemTitle,
+                "recommendedAction": diagnosis.recommendedAction,
+                "severity": diagnosis.severity,
+                "connectionDiagnosis": diagnosis,
                 "lastSuccessfulExchangeAt": last_exchange_at,
                 "lastDataAt": last_data_at,
                 "dataAgeSec": data_age_sec,
@@ -376,11 +386,15 @@ class BridgeRuntime:
         )
 
     async def _build_connection_payload(self, *, now_value: datetime) -> dict:
-        statuses, last_exchange_at, last_data_at, data_age_sec = await self._build_connection_status_block(
-            now_value=now_value,
+        statuses, last_exchange_at, last_data_at, data_age_sec, diagnosis = (
+            await self._build_connection_status_block(now_value=now_value)
         )
         return {
             "connectionStatuses": [item.model_dump(mode="json") for item in statuses],
+            "problemTitle": diagnosis.problemTitle,
+            "recommendedAction": diagnosis.recommendedAction,
+            "severity": diagnosis.severity,
+            "connectionDiagnosis": diagnosis.model_dump(mode="json"),
             "lastSuccessfulExchangeAt": last_exchange_at.isoformat() if last_exchange_at else None,
             "lastDataAt": last_data_at.isoformat() if last_data_at else None,
             "dataAgeSec": data_age_sec,
@@ -390,7 +404,7 @@ class BridgeRuntime:
         self,
         *,
         now_value: datetime | None = None,
-    ) -> tuple[list[ConnectionStatusItem], datetime | None, datetime | None, int | None]:
+    ) -> tuple[list[ConnectionStatusItem], datetime | None, datetime | None, int | None, ConnectionDiagnosis]:
         now_ts = now_value or now_utc()
         realtime_clients = await self.broadcaster.client_count()
         async with self._debug_lock:
@@ -408,7 +422,8 @@ class BridgeRuntime:
             last_data_at = self._last_data_at
 
         statuses, data_age_sec = evaluate_connection_statuses(context)
-        return statuses, last_exchange_at, last_data_at, data_age_sec
+        diagnosis = build_connection_diagnosis(statuses)
+        return statuses, last_exchange_at, last_data_at, data_age_sec, diagnosis
 
     async def _mark_data_exchange(self, timestamp: datetime) -> None:
         async with self._debug_lock:

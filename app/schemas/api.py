@@ -21,6 +21,7 @@ SeverityLevel = Literal["info", "warning", "error"]
 FaultType = Literal["break", "short", "unknown"]
 ComputedStatus = Literal["normal", "break", "short", "unknown"]
 ConnectionState = Literal["ok", "warn", "error", "unknown"]
+DiagnosisSeverity = Literal["ok", "warn", "error"]
 
 
 class ChannelState(BaseModel):
@@ -94,6 +95,14 @@ class ConnectionStatusItem(BaseModel):
     updatedAt: datetime | None = None
 
 
+class ConnectionDiagnosis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    problemTitle: str
+    recommendedAction: str
+    severity: DiagnosisSeverity
+
+
 class StateSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -110,6 +119,10 @@ class StateSnapshot(BaseModel):
     channels: list[ChannelState] = Field(default_factory=list)
     decodedChannels: list[ChannelState] = Field(default_factory=list)
     connectionStatuses: list[ConnectionStatusItem] = Field(default_factory=list)
+    problemTitle: str = "Недостаточно данных для диагностики"
+    recommendedAction: str = "Проверить поступление телеметрии и состояние соединения"
+    severity: DiagnosisSeverity = "warn"
+    connectionDiagnosis: ConnectionDiagnosis | None = None
     lastSuccessfulExchangeAt: datetime | None = None
     lastDataAt: datetime | None = None
     dataAgeSec: int | None = None
