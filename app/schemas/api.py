@@ -20,6 +20,7 @@ ChannelStatus = Literal[
 SeverityLevel = Literal["info", "warning", "error"]
 FaultType = Literal["break", "short", "unknown"]
 ComputedStatus = Literal["normal", "break", "short", "unknown"]
+ConnectionState = Literal["ok", "warn", "error", "unknown"]
 
 
 class ChannelState(BaseModel):
@@ -47,6 +48,7 @@ class ChannelState(BaseModel):
     stateText: str | None = None
     label: str | None = None
     faultType: FaultType | None = None
+    faultText: str | None = None
     inBit: int | None = None
     outBit: int | None = None
     diagBit: int | None = None
@@ -82,6 +84,16 @@ class AggregatesSnapshot(BaseModel):
     pages: dict[str, str]
 
 
+class ConnectionStatusItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str
+    label: str
+    state: ConnectionState
+    details: str | None = None
+    updatedAt: datetime | None = None
+
+
 class StateSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -97,6 +109,10 @@ class StateSnapshot(BaseModel):
     normalCount: int = 0
     channels: list[ChannelState] = Field(default_factory=list)
     decodedChannels: list[ChannelState] = Field(default_factory=list)
+    connectionStatuses: list[ConnectionStatusItem] = Field(default_factory=list)
+    lastSuccessfulExchangeAt: datetime | None = None
+    lastDataAt: datetime | None = None
+    dataAgeSec: int | None = None
     summary: SummarySnapshot
     aggregates: AggregatesSnapshot
     act: dict[str, bool | None] = Field(default_factory=lambda: {"tifon": None})

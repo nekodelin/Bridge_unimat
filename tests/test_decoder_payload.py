@@ -155,6 +155,7 @@ class QL6CMappingTest(unittest.TestCase):
         channel_6 = by_channel["6"]
         self.assertEqual(channel_6.status, "normal")
         self.assertEqual(channel_6.faultType, None)
+        self.assertIsNone(channel_6.faultText)
         self.assertEqual(channel_6.stateTuple, [1, 1, 1])
         self.assertEqual(channel_6.yellow_led, True)
         self.assertEqual(channel_6.red_led, False)
@@ -162,6 +163,7 @@ class QL6CMappingTest(unittest.TestCase):
         channel_8 = by_channel["8"]
         self.assertEqual(channel_8.status, "fault")
         self.assertEqual(channel_8.faultType, "break")
+        self.assertEqual(channel_8.faultText, "Обрыв")
         self.assertEqual(channel_8.stateTuple, [0, 1, 0])
         self.assertEqual(channel_8.yellow_led, True)
         self.assertEqual(channel_8.red_led, True)
@@ -169,6 +171,7 @@ class QL6CMappingTest(unittest.TestCase):
         channel_7 = by_channel["7"]
         self.assertEqual(channel_7.status, "unknown")
         self.assertEqual(channel_7.faultType, "unknown")
+        self.assertIsNone(channel_7.faultText)
 
 
 if __name__ == "__main__":

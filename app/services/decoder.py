@@ -45,6 +45,10 @@ FAULT_ACTION_TEXT = (
 )
 UNKNOWN_CAUSE_TEXT = "РљРѕРјР±РёРЅР°С†РёСЏ СЃРёРіРЅР°Р»РѕРІ РЅРµ РѕРїРёСЃР°РЅР° РІ С‚Р°Р±Р»РёС†Рµ РёСЃС‚РёРЅРЅРѕСЃС‚Рё"
 UNKNOWN_ACTION_TEXT = "РџСЂРѕРІРµСЂРёС‚СЊ РєРѕСЂСЂРµРєС‚РЅРѕСЃС‚СЊ РІС…РѕРґРЅС‹С… РґР°РЅРЅС‹С… Рё СЃС…РµРјСѓ РїРѕРґРєР»СЋС‡РµРЅРёСЏ"
+FAULT_TEXT_BY_TYPE: dict[str, str] = {
+    "break": "\u041e\u0431\u0440\u044b\u0432",
+    "short": "\u041a\u0417",
+}
 
 QL6C_CHANNEL_META: dict[str, tuple[str, str]] = {
     "6": ("1s212b", "РєСЂСЋРє СЃР»РµРІР° РІС‹РґРІРёРЅСѓС‚СЊ"),
@@ -203,6 +207,12 @@ def decode_channel(input_bit: int, output_bit: int, diagnostic_bit: int) -> Deco
     return decode_channel_state(input_bit, output_bit, diagnostic_bit)
 
 
+def resolve_fault_text(fault_type: str | None) -> str | None:
+    if not fault_type:
+        return None
+    return FAULT_TEXT_BY_TYPE.get(fault_type)
+
+
 class DecoderService:
     def __init__(
         self,
@@ -266,6 +276,7 @@ class DecoderService:
                     stateText="РќРµР°РєС‚РёРІРЅРѕ",
                     label="РќРµР°РєС‚РёРІРЅРѕ",
                     faultType=None,
+                    faultText=None,
                     inBit=0,
                     outBit=0,
                     diagBit=0,
@@ -312,6 +323,7 @@ class DecoderService:
                     stateText="РќРµР°РєС‚РёРІРЅРѕ",
                     label="РќРµР°РєС‚РёРІРЅРѕ",
                     faultType=None,
+                    faultText=None,
                     inBit=0,
                     outBit=0,
                     diagBit=0,
@@ -520,6 +532,7 @@ class DecoderService:
                     stateText=decoded_state.state_label,
                     label=decoded_state.label,
                     faultType=decoded_state.fault_type,  # type: ignore[arg-type]
+                    faultText=resolve_fault_text(decoded_state.fault_type),
                     inBit=input_bit,
                     outBit=output_bit,
                     diagBit=diagnostic_bit,
@@ -614,6 +627,7 @@ class DecoderService:
                     stateText=decoded_state.state_label,
                     label=decoded_state.label,
                     faultType=decoded_state.fault_type,  # type: ignore[arg-type]
+                    faultText=resolve_fault_text(decoded_state.fault_type),
                     inBit=input_bit,
                     outBit=output_bit,
                     diagBit=diagnostic_bit,

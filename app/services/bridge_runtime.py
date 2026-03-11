@@ -4,8 +4,9 @@ from datetime import UTC, datetime
 
 from app.config import ConfigBundle, Settings
 from app.models import ActPayload, BoardPayload
-from app.schemas import ChannelState, JournalEntry, StateSnapshot
+from app.schemas import ChannelState, ConnectionStatusItem, JournalEntry, StateSnapshot
 from app.services.broadcaster import WebSocketBroadcaster
+from app.services.connection_status import ConnectionStatusContext, evaluate_connection_statuses
 from app.services.decoder import DecoderService
 from app.services.journal import EventJournalService
 from app.services.state_store import StateStore
@@ -41,6 +42,11 @@ class BridgeRuntime:
         self._last_raw_mqtt_payload: str | None = None
         self._last_raw_mqtt_topic: str | None = None
         self._last_raw_mqtt_timestamp: datetime | None = None
+        self._mqtt_connected = False
+        self._last_data_at: datetime | None = None
+        self._last_successful_exchange_at: datetime | None = None
+        self._state_ws_clients = 0
+        self._last_realtime_publish_at: datetime | None = None
 
     def attach_mqtt_client(self, mqtt_client: object) -> None:
         self.mqtt_client = mqtt_client
@@ -78,6 +84,7 @@ class BridgeRuntime:
             module=module,
             topic=topic,
         )
+        await self._mark_data_exchange(timestamp)
         logger.info(
             "Decoded payload summary topic=%s source=%s moduleStatus=%s faultCount=%s warningCount=%s normalCount=%s",
             topic,
@@ -97,12 +104,7 @@ class BridgeRuntime:
             source=source,
             raw_payload=raw_payload,
         )
-        await self.broadcaster.broadcast(
-            {
-                "type": "state_update",
-                "data": snapshot.model_dump(mode="json"),
-            }
-        )
+        await self._broadcast_state_update(snapshot)
         for item in journal_items:
             await self._broadcast_journal_entry(item)
 
@@ -119,14 +121,14 @@ class BridgeRuntime:
         )
         if not changed:
             return
-        await self.broadcaster.broadcast(
-            {
-                "type": "state_update",
-                "data": snapshot.model_dump(mode="json"),
-            }
-        )
+        await self._broadcast_state_update(snapshot)
 
     async def handle_connection_event(self, event_name: str) -> None:
+        if event_name == "mqtt_connected":
+            await self._set_mqtt_connected(True)
+        elif event_name == "mqtt_disconnected":
+            await self._set_mqtt_connected(False)
+
         if event_name == "mqtt_connected":
             entry = await self.journal.append_system(
                 title="MQTT connected",
@@ -173,7 +175,8 @@ class BridgeRuntime:
         }
 
     async def get_snapshot(self) -> StateSnapshot:
-        return await self.state_store.get_snapshot()
+        snapshot = await self.state_store.get_snapshot()
+        return await self._enrich_snapshot(snapshot)
 
     async def get_channels(self) -> list[ChannelState]:
         return await self.state_store.get_channels()
@@ -239,23 +242,30 @@ class BridgeRuntime:
         return entry
 
     async def websocket_connected(self, total_clients: int) -> None:
+        await self._set_state_ws_clients(total_clients)
+        await self._mark_realtime_publish()
         await self.append_system_event(
             title="WebSocket client connected",
             message=f"Client connected. clients={total_clients}",
         )
 
     async def websocket_disconnected(self, total_clients: int) -> None:
+        await self._set_state_ws_clients(total_clients)
         await self.append_system_event(
             title="WebSocket client disconnected",
             message=f"Client disconnected. clients={total_clients}",
         )
 
     async def heartbeat(self) -> None:
+        now_value = now_utc()
+        connection_payload = await self._build_connection_payload(now_value=now_value)
         payload = {
             "type": "heartbeat",
             "timestamp": datetime.now().astimezone().isoformat(),
+            **connection_payload,
         }
         await self.broadcaster.broadcast(payload)
+        await self._mark_realtime_publish(timestamp=now_value)
 
     async def _append_channel_journal(
         self,
@@ -342,3 +352,79 @@ class BridgeRuntime:
                 "data": entry.model_dump(mode="json"),
             }
         )
+
+    async def _broadcast_state_update(self, snapshot: StateSnapshot) -> None:
+        enriched_snapshot = await self._enrich_snapshot(snapshot)
+        await self.broadcaster.broadcast(
+            {
+                "type": "state_update",
+                "data": enriched_snapshot.model_dump(mode="json"),
+            }
+        )
+        await self._mark_realtime_publish()
+
+    async def _enrich_snapshot(self, snapshot: StateSnapshot) -> StateSnapshot:
+        statuses, last_exchange_at, last_data_at, data_age_sec = await self._build_connection_status_block()
+        return snapshot.model_copy(
+            update={
+                "connectionStatuses": statuses,
+                "lastSuccessfulExchangeAt": last_exchange_at,
+                "lastDataAt": last_data_at,
+                "dataAgeSec": data_age_sec,
+            },
+            deep=True,
+        )
+
+    async def _build_connection_payload(self, *, now_value: datetime) -> dict:
+        statuses, last_exchange_at, last_data_at, data_age_sec = await self._build_connection_status_block(
+            now_value=now_value,
+        )
+        return {
+            "connectionStatuses": [item.model_dump(mode="json") for item in statuses],
+            "lastSuccessfulExchangeAt": last_exchange_at.isoformat() if last_exchange_at else None,
+            "lastDataAt": last_data_at.isoformat() if last_data_at else None,
+            "dataAgeSec": data_age_sec,
+        }
+
+    async def _build_connection_status_block(
+        self,
+        *,
+        now_value: datetime | None = None,
+    ) -> tuple[list[ConnectionStatusItem], datetime | None, datetime | None, int | None]:
+        now_ts = now_value or now_utc()
+        realtime_clients = await self.broadcaster.client_count()
+        async with self._debug_lock:
+            self._state_ws_clients = realtime_clients
+            context = ConnectionStatusContext(
+                now=now_ts,
+                mock_mode=self.settings.mock_mode,
+                mqtt_connected=self._mqtt_connected,
+                last_data_at=self._last_data_at,
+                last_successful_exchange_at=self._last_successful_exchange_at,
+                realtime_clients=realtime_clients,
+                last_realtime_publish_at=self._last_realtime_publish_at,
+            )
+            last_exchange_at = self._last_successful_exchange_at
+            last_data_at = self._last_data_at
+
+        statuses, data_age_sec = evaluate_connection_statuses(context)
+        return statuses, last_exchange_at, last_data_at, data_age_sec
+
+    async def _mark_data_exchange(self, timestamp: datetime) -> None:
+        async with self._debug_lock:
+            self._last_data_at = timestamp
+            self._last_successful_exchange_at = timestamp
+
+    async def _set_mqtt_connected(self, value: bool) -> None:
+        async with self._debug_lock:
+            self._mqtt_connected = value
+
+    async def _set_state_ws_clients(self, total_clients: int) -> None:
+        async with self._debug_lock:
+            self._state_ws_clients = max(int(total_clients), 0)
+
+    async def _mark_realtime_publish(self, timestamp: datetime | None = None) -> None:
+        clients = await self.broadcaster.client_count()
+        async with self._debug_lock:
+            self._state_ws_clients = clients
+            self._last_realtime_publish_at = timestamp or now_utc()
