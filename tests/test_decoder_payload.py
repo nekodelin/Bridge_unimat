@@ -112,6 +112,40 @@ class QL6CMappingTest(unittest.TestCase):
         decoded = self.decoder.decode_board_payload(payload=payload, topic="puma_board", updated_at=self.now)
         return {item.logicalChannel: item for item in decoded}
 
+    def _decode_single_channel_triplet(
+        self,
+        *,
+        channel: str,
+        in_bit: int,
+        out_bit: int,
+        inversed_bit: int,
+    ):
+        in_bit_index_by_channel = {
+            "6": 7,
+            "7": 6,
+            "8": 5,
+            "9": 4,
+            "A": 3,
+            "B": 2,
+            "C": 1,
+            "D": 0,
+        }
+        out_bit_index_by_channel = {
+            "6": 0,
+            "7": 1,
+            "8": 2,
+            "9": 3,
+            "A": 4,
+            "B": 5,
+            "C": 6,
+            "D": 7,
+        }
+        in_value = (1 << in_bit_index_by_channel[channel]) if in_bit else 0
+        out_value = (1 << out_bit_index_by_channel[channel]) if out_bit else 0
+        inversed_value = (1 << in_bit_index_by_channel[channel]) if inversed_bit else 0
+        by_channel = self._decode(in_value=in_value, inversed_value=inversed_value, out_value=out_value)
+        return by_channel[channel]
+
     def test_only_ql6c_working_channels_6_to_d(self) -> None:
         payload = BoardPayload.model_validate({"in": 0, "inversed": 0, "out": 0, "other": 0})
         decoded = self.decoder.decode_board_payload(payload=payload, topic="puma_board", updated_at=self.now)
@@ -154,24 +188,87 @@ class QL6CMappingTest(unittest.TestCase):
 
         channel_6 = by_channel["6"]
         self.assertEqual(channel_6.status, "normal")
+        self.assertEqual(channel_6.statusLabel, "Норма")
+        self.assertEqual(channel_6.faultLabel, "Норма")
         self.assertEqual(channel_6.faultType, None)
         self.assertIsNone(channel_6.faultText)
         self.assertEqual(channel_6.stateTuple, [1, 1, 1])
         self.assertEqual(channel_6.yellow_led, True)
         self.assertEqual(channel_6.red_led, False)
+        self.assertEqual(channel_6.yellowActive, True)
+        self.assertEqual(channel_6.redActive, False)
 
         channel_8 = by_channel["8"]
         self.assertEqual(channel_8.status, "fault")
+        self.assertEqual(channel_8.statusLabel, "ОБРЫВ")
+        self.assertEqual(channel_8.faultLabel, "ОБРЫВ")
         self.assertEqual(channel_8.faultType, "break")
         self.assertEqual(channel_8.faultText, "Обрыв")
         self.assertEqual(channel_8.stateTuple, [0, 1, 0])
         self.assertEqual(channel_8.yellow_led, True)
         self.assertEqual(channel_8.red_led, True)
+        self.assertEqual(channel_8.yellowActive, True)
+        self.assertEqual(channel_8.redActive, True)
 
         channel_7 = by_channel["7"]
         self.assertEqual(channel_7.status, "unknown")
+        self.assertEqual(channel_7.statusLabel, "Неизвестно")
+        self.assertEqual(channel_7.faultLabel, "Неизвестно")
         self.assertEqual(channel_7.faultType, "unknown")
         self.assertIsNone(channel_7.faultText)
+        self.assertEqual(channel_7.yellowActive, False)
+        self.assertEqual(channel_7.redActive, False)
+
+    def test_all_8_channels_light_patterns(self) -> None:
+        channels = ["6", "7", "8", "9", "A", "B", "C", "D"]
+        for channel in channels:
+            with self.subTest(channel=channel, pattern="red_only"):
+                item = self._decode_single_channel_triplet(
+                    channel=channel,
+                    in_bit=1,
+                    out_bit=0,
+                    inversed_bit=0,
+                )
+                self.assertEqual(item.statusLabel, "КЗ")
+                self.assertEqual(item.faultLabel, "КЗ")
+                self.assertEqual(item.yellowActive, False)
+                self.assertEqual(item.redActive, True)
+
+            with self.subTest(channel=channel, pattern="yellow_and_red"):
+                item = self._decode_single_channel_triplet(
+                    channel=channel,
+                    in_bit=0,
+                    out_bit=1,
+                    inversed_bit=0,
+                )
+                self.assertEqual(item.statusLabel, "ОБРЫВ")
+                self.assertEqual(item.faultLabel, "ОБРЫВ")
+                self.assertEqual(item.yellowActive, True)
+                self.assertEqual(item.redActive, True)
+
+            with self.subTest(channel=channel, pattern="yellow_only"):
+                item = self._decode_single_channel_triplet(
+                    channel=channel,
+                    in_bit=1,
+                    out_bit=1,
+                    inversed_bit=1,
+                )
+                self.assertEqual(item.statusLabel, "Норма")
+                self.assertEqual(item.faultLabel, "Норма")
+                self.assertEqual(item.yellowActive, True)
+                self.assertEqual(item.redActive, False)
+
+            with self.subTest(channel=channel, pattern="both_off"):
+                item = self._decode_single_channel_triplet(
+                    channel=channel,
+                    in_bit=0,
+                    out_bit=0,
+                    inversed_bit=1,
+                )
+                self.assertEqual(item.statusLabel, "Норма")
+                self.assertEqual(item.faultLabel, "Норма")
+                self.assertEqual(item.yellowActive, False)
+                self.assertEqual(item.redActive, False)
 
 
 if __name__ == "__main__":

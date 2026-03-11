@@ -375,6 +375,7 @@ class BridgeRuntime:
             update={
                 "connectionStatuses": statuses,
                 "problemTitle": diagnosis.problemTitle,
+                "recommendedChecks": diagnosis.recommendedChecks,
                 "recommendedAction": diagnosis.recommendedAction,
                 "severity": diagnosis.severity,
                 "connectionDiagnosis": diagnosis,
@@ -392,6 +393,7 @@ class BridgeRuntime:
         return {
             "connectionStatuses": [item.model_dump(mode="json") for item in statuses],
             "problemTitle": diagnosis.problemTitle,
+            "recommendedChecks": diagnosis.recommendedChecks,
             "recommendedAction": diagnosis.recommendedAction,
             "severity": diagnosis.severity,
             "connectionDiagnosis": diagnosis.model_dump(mode="json"),

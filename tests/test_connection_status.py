@@ -119,42 +119,71 @@ class ConnectionDiagnosisTest(unittest.TestCase):
 
     def test_board_unavailable_rule(self) -> None:
         diagnosis = build_connection_diagnosis(self._statuses(board_online="error"))
-        self.assertEqual(diagnosis.problemTitle, "Плата недоступна")
+        self.assertEqual(diagnosis.problemTitle, "Плата не отвечает")
+        self.assertEqual(
+            diagnosis.recommendedChecks,
+            ["питание платы", "кабель подключения", "перезапустить плату"],
+        )
         self.assertEqual(diagnosis.severity, "error")
 
     def test_no_orange_data_rule(self) -> None:
         diagnosis = build_connection_diagnosis(self._statuses(incoming_data="error"))
         self.assertEqual(diagnosis.problemTitle, "Нет данных от Orange")
+        self.assertEqual(
+            diagnosis.recommendedChecks,
+            ["Orange", "кабель к плате", "передачу данных на сервер"],
+        )
         self.assertEqual(diagnosis.severity, "error")
 
     def test_backend_unavailable_rule(self) -> None:
         diagnosis = build_connection_diagnosis(self._statuses(backend_available="error"))
         self.assertEqual(diagnosis.problemTitle, "Сервер недоступен")
+        self.assertEqual(
+            diagnosis.recommendedChecks,
+            ["работает ли сервер", "интернет соединение", "backend сервис"],
+        )
         self.assertEqual(diagnosis.severity, "error")
 
     def test_ui_updates_rule(self) -> None:
         diagnosis = build_connection_diagnosis(self._statuses(interface_updates="error"))
-        self.assertEqual(diagnosis.problemTitle, "Данные не доходят до веб-интерфейса")
+        self.assertEqual(diagnosis.problemTitle, "Интерфейс не получает данные")
+        self.assertEqual(
+            diagnosis.recommendedChecks,
+            ["соединение браузера с сервером", "обновить страницу", "сетевое подключение"],
+        )
         self.assertEqual(diagnosis.severity, "error")
 
     def test_data_stale_warn_rule(self) -> None:
         diagnosis = build_connection_diagnosis(self._statuses(data_fresh="warn"))
-        self.assertEqual(diagnosis.problemTitle, "Данные устарели")
+        self.assertEqual(diagnosis.problemTitle, "Данные давно не обновлялись")
+        self.assertEqual(
+            diagnosis.recommendedChecks,
+            ["Orange", "соединение с сервером", "питание оборудования"],
+        )
         self.assertEqual(diagnosis.severity, "warn")
 
     def test_data_stale_error_rule(self) -> None:
         diagnosis = build_connection_diagnosis(self._statuses(data_fresh="error"))
-        self.assertEqual(diagnosis.problemTitle, "Данные устарели")
+        self.assertEqual(diagnosis.problemTitle, "Данные давно не обновлялись")
+        self.assertEqual(
+            diagnosis.recommendedChecks,
+            ["Orange", "соединение с сервером", "питание оборудования"],
+        )
         self.assertEqual(diagnosis.severity, "error")
 
     def test_unknown_rule(self) -> None:
         diagnosis = build_connection_diagnosis(self._statuses(board_online="unknown"))
         self.assertEqual(diagnosis.problemTitle, "Недостаточно данных для диагностики")
+        self.assertEqual(
+            diagnosis.recommendedChecks,
+            ["поступление телеметрии", "соединение оборудования", "источник данных"],
+        )
         self.assertEqual(diagnosis.severity, "warn")
 
     def test_ok_rule(self) -> None:
         diagnosis = build_connection_diagnosis(self._statuses())
         self.assertEqual(diagnosis.problemTitle, "Не обнаружена")
+        self.assertEqual(diagnosis.recommendedChecks, [])
         self.assertEqual(diagnosis.recommendedAction, "Система работает штатно")
         self.assertEqual(diagnosis.severity, "ok")
 

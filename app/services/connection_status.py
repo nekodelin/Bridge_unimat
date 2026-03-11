@@ -18,20 +18,44 @@ LABEL_INCOMING_DATA = "\u0415\u0441\u0442\u044c \u0432\u0445\u043e\u0434\u044f\u
 LABEL_BACKEND_AVAILABLE = "\u0411\u0435\u043a\u0435\u043d\u0434 \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d"
 LABEL_INTERFACE_UPDATES = "\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f \u0434\u043e\u0445\u043e\u0434\u044f\u0442 \u0434\u043e \u0438\u043d\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430"
 LABEL_DATA_FRESH = "\u0414\u0430\u043d\u043d\u044b\u0435 \u0441\u0432\u0435\u0436\u0438\u0435"
-PROBLEM_BOARD_UNAVAILABLE = "\u041f\u043b\u0430\u0442\u0430 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0430"
-ACTION_BOARD_UNAVAILABLE = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u043f\u0438\u0442\u0430\u043d\u0438\u0435 \u043f\u043b\u0430\u0442\u044b, \u043a\u0430\u0431\u0435\u043b\u044c \u0438 \u043f\u0435\u0440\u0435\u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435"
+PROBLEM_BOARD_UNAVAILABLE = "\u041f\u043b\u0430\u0442\u0430 \u043d\u0435 \u043e\u0442\u0432\u0435\u0447\u0430\u0435\u0442"
+CHECKS_BOARD_UNAVAILABLE = [
+    "\u043f\u0438\u0442\u0430\u043d\u0438\u0435 \u043f\u043b\u0430\u0442\u044b",
+    "\u043a\u0430\u0431\u0435\u043b\u044c \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f",
+    "\u043f\u0435\u0440\u0435\u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u043f\u043b\u0430\u0442\u0443",
+]
 PROBLEM_NO_ORANGE_DATA = "\u041d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445 \u043e\u0442 Orange"
-ACTION_NO_ORANGE_DATA = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c Orange, \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0435 \u0441 \u043f\u043b\u0430\u0442\u043e\u0439 \u0438 \u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0443 \u0434\u0430\u043d\u043d\u044b\u0445 \u043d\u0430 \u0441\u0435\u0440\u0432\u0435\u0440"
+CHECKS_NO_ORANGE_DATA = [
+    "Orange",
+    "\u043a\u0430\u0431\u0435\u043b\u044c \u043a \u043f\u043b\u0430\u0442\u0435",
+    "\u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0443 \u0434\u0430\u043d\u043d\u044b\u0445 \u043d\u0430 \u0441\u0435\u0440\u0432\u0435\u0440",
+]
 PROBLEM_SERVER_UNAVAILABLE = "\u0421\u0435\u0440\u0432\u0435\u0440 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d"
-ACTION_SERVER_UNAVAILABLE = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0441\u0435\u0440\u0432\u0435\u0440, \u0441\u0435\u0440\u0432\u0438\u0441\u044b \u0438 \u0441\u0435\u0442\u044c \u0441\u0435\u0440\u0432\u0435\u0440\u0430"
-PROBLEM_UI_UPDATES_BLOCKED = "\u0414\u0430\u043d\u043d\u044b\u0435 \u043d\u0435 \u0434\u043e\u0445\u043e\u0434\u044f\u0442 \u0434\u043e \u0432\u0435\u0431-\u0438\u043d\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430"
-ACTION_UI_UPDATES_BLOCKED = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u043a\u0430\u043d\u0430\u043b \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0439 \u0438 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0432\u0435\u0431-\u0438\u043d\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430"
-PROBLEM_DATA_STALE = "\u0414\u0430\u043d\u043d\u044b\u0435 \u0443\u0441\u0442\u0430\u0440\u0435\u043b\u0438"
-ACTION_DATA_STALE = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0437\u0430\u0434\u0435\u0440\u0436\u043a\u0443 \u043e\u0431\u043c\u0435\u043d\u0430 \u0438 \u043a\u0430\u043d\u0430\u043b \u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0438 \u0434\u0430\u043d\u043d\u044b\u0445"
+CHECKS_SERVER_UNAVAILABLE = [
+    "\u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442 \u043b\u0438 \u0441\u0435\u0440\u0432\u0435\u0440",
+    "\u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0435",
+    "backend \u0441\u0435\u0440\u0432\u0438\u0441",
+]
+PROBLEM_UI_UPDATES_BLOCKED = "\u0418\u043d\u0442\u0435\u0440\u0444\u0435\u0439\u0441 \u043d\u0435 \u043f\u043e\u043b\u0443\u0447\u0430\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0435"
+CHECKS_UI_UPDATES_BLOCKED = [
+    "\u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0435 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430 \u0441 \u0441\u0435\u0440\u0432\u0435\u0440\u043e\u043c",
+    "\u043e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0443",
+    "\u0441\u0435\u0442\u0435\u0432\u043e\u0435 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435",
+]
+PROBLEM_DATA_STALE = "\u0414\u0430\u043d\u043d\u044b\u0435 \u0434\u0430\u0432\u043d\u043e \u043d\u0435 \u043e\u0431\u043d\u043e\u0432\u043b\u044f\u043b\u0438\u0441\u044c"
+CHECKS_DATA_STALE = [
+    "Orange",
+    "\u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0435 \u0441 \u0441\u0435\u0440\u0432\u0435\u0440\u043e\u043c",
+    "\u043f\u0438\u0442\u0430\u043d\u0438\u0435 \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f",
+]
 PROBLEM_NOT_DETECTED = "\u041d\u0435 \u043e\u0431\u043d\u0430\u0440\u0443\u0436\u0435\u043d\u0430"
 ACTION_SYSTEM_OK = "\u0421\u0438\u0441\u0442\u0435\u043c\u0430 \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442 \u0448\u0442\u0430\u0442\u043d\u043e"
 PROBLEM_NOT_ENOUGH_DATA = "\u041d\u0435\u0434\u043e\u0441\u0442\u0430\u0442\u043e\u0447\u043d\u043e \u0434\u0430\u043d\u043d\u044b\u0445 \u0434\u043b\u044f \u0434\u0438\u0430\u0433\u043d\u043e\u0441\u0442\u0438\u043a\u0438"
-ACTION_NOT_ENOUGH_DATA = "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u043f\u043e\u0441\u0442\u0443\u043f\u043b\u0435\u043d\u0438\u0435 \u0442\u0435\u043b\u0435\u043c\u0435\u0442\u0440\u0438\u0438 \u0438 \u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435 \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u044f"
+CHECKS_NOT_ENOUGH_DATA = [
+    "\u043f\u043e\u0441\u0442\u0443\u043f\u043b\u0435\u043d\u0438\u0435 \u0442\u0435\u043b\u0435\u043c\u0435\u0442\u0440\u0438\u0438",
+    "\u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0435 \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f",
+    "\u0438\u0441\u0442\u043e\u0447\u043d\u0438\u043a \u0434\u0430\u043d\u043d\u044b\u0445",
+]
 
 REQUIRED_STATUS_KEYS = (
     "board_online",
@@ -81,60 +105,61 @@ def build_connection_diagnosis(statuses: list[ConnectionStatusItem]) -> Connecti
     fresh_state = state_by_key["data_fresh"]
 
     if board_state in {STATUS_ERROR, STATUS_WARN}:
-        return ConnectionDiagnosis(
-            problemTitle=PROBLEM_BOARD_UNAVAILABLE,
-            recommendedAction=ACTION_BOARD_UNAVAILABLE,
+        return _build_diagnosis(
+            problem_title=PROBLEM_BOARD_UNAVAILABLE,
+            recommended_checks=CHECKS_BOARD_UNAVAILABLE,
             severity=STATUS_ERROR,
         )
     if board_state == STATUS_UNKNOWN:
         return _diagnosis_unknown()
 
     if incoming_state == STATUS_ERROR:
-        return ConnectionDiagnosis(
-            problemTitle=PROBLEM_NO_ORANGE_DATA,
-            recommendedAction=ACTION_NO_ORANGE_DATA,
+        return _build_diagnosis(
+            problem_title=PROBLEM_NO_ORANGE_DATA,
+            recommended_checks=CHECKS_NO_ORANGE_DATA,
             severity=STATUS_ERROR,
         )
     if incoming_state == STATUS_UNKNOWN:
         return _diagnosis_unknown()
 
     if backend_state in {STATUS_ERROR, STATUS_WARN}:
-        return ConnectionDiagnosis(
-            problemTitle=PROBLEM_SERVER_UNAVAILABLE,
-            recommendedAction=ACTION_SERVER_UNAVAILABLE,
+        return _build_diagnosis(
+            problem_title=PROBLEM_SERVER_UNAVAILABLE,
+            recommended_checks=CHECKS_SERVER_UNAVAILABLE,
             severity=STATUS_ERROR,
         )
     if backend_state == STATUS_UNKNOWN:
         return _diagnosis_unknown()
 
     if interface_state in {STATUS_ERROR, STATUS_WARN}:
-        return ConnectionDiagnosis(
-            problemTitle=PROBLEM_UI_UPDATES_BLOCKED,
-            recommendedAction=ACTION_UI_UPDATES_BLOCKED,
+        return _build_diagnosis(
+            problem_title=PROBLEM_UI_UPDATES_BLOCKED,
+            recommended_checks=CHECKS_UI_UPDATES_BLOCKED,
             severity=STATUS_ERROR,
         )
     if interface_state == STATUS_UNKNOWN:
         return _diagnosis_unknown()
 
     if fresh_state == STATUS_ERROR:
-        return ConnectionDiagnosis(
-            problemTitle=PROBLEM_DATA_STALE,
-            recommendedAction=ACTION_DATA_STALE,
+        return _build_diagnosis(
+            problem_title=PROBLEM_DATA_STALE,
+            recommended_checks=CHECKS_DATA_STALE,
             severity=STATUS_ERROR,
         )
     if fresh_state == STATUS_WARN:
-        return ConnectionDiagnosis(
-            problemTitle=PROBLEM_DATA_STALE,
-            recommendedAction=ACTION_DATA_STALE,
+        return _build_diagnosis(
+            problem_title=PROBLEM_DATA_STALE,
+            recommended_checks=CHECKS_DATA_STALE,
             severity=STATUS_WARN,
         )
     if fresh_state == STATUS_UNKNOWN:
         return _diagnosis_unknown()
 
-    return ConnectionDiagnosis(
-        problemTitle=PROBLEM_NOT_DETECTED,
-        recommendedAction=ACTION_SYSTEM_OK,
+    return _build_diagnosis(
+        problem_title=PROBLEM_NOT_DETECTED,
+        recommended_checks=[],
         severity=STATUS_OK,
+        recommended_action=ACTION_SYSTEM_OK,
     )
 
 
@@ -290,8 +315,31 @@ def _age_seconds(now_value: datetime, value: datetime | None) -> int | None:
 
 
 def _diagnosis_unknown() -> ConnectionDiagnosis:
-    return ConnectionDiagnosis(
-        problemTitle=PROBLEM_NOT_ENOUGH_DATA,
-        recommendedAction=ACTION_NOT_ENOUGH_DATA,
+    return _build_diagnosis(
+        problem_title=PROBLEM_NOT_ENOUGH_DATA,
+        recommended_checks=CHECKS_NOT_ENOUGH_DATA,
         severity=STATUS_WARN,
     )
+
+
+def _build_diagnosis(
+    *,
+    problem_title: str,
+    recommended_checks: list[str],
+    severity: str,
+    recommended_action: str | None = None,
+) -> ConnectionDiagnosis:
+    checks = [item for item in recommended_checks]
+    action = recommended_action if recommended_action is not None else _checks_to_action(checks)
+    return ConnectionDiagnosis(
+        problemTitle=problem_title,
+        recommendedChecks=checks,
+        recommendedAction=action,
+        severity=severity,
+    )
+
+
+def _checks_to_action(checks: list[str]) -> str:
+    if not checks:
+        return ACTION_SYSTEM_OK
+    return ", ".join(checks)

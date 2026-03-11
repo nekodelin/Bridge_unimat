@@ -48,6 +48,7 @@ class ChannelState(BaseModel):
     stateLabel: str
     stateText: str | None = None
     label: str | None = None
+    faultLabel: str | None = None
     faultType: FaultType | None = None
     faultText: str | None = None
     inBit: int | None = None
@@ -56,6 +57,8 @@ class ChannelState(BaseModel):
     stateTuple: list[int] | None = None
     yellow_led: bool | None = None
     red_led: bool | None = None
+    yellowActive: bool | None = None
+    redActive: bool | None = None
     message: str
     reason: str | None = None
     cause: str | None = None
@@ -99,6 +102,7 @@ class ConnectionDiagnosis(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     problemTitle: str
+    recommendedChecks: list[str] = Field(default_factory=list)
     recommendedAction: str
     severity: DiagnosisSeverity
 
@@ -120,6 +124,13 @@ class StateSnapshot(BaseModel):
     decodedChannels: list[ChannelState] = Field(default_factory=list)
     connectionStatuses: list[ConnectionStatusItem] = Field(default_factory=list)
     problemTitle: str = "Недостаточно данных для диагностики"
+    recommendedChecks: list[str] = Field(
+        default_factory=lambda: [
+            "поступление телеметрии",
+            "соединение оборудования",
+            "источник данных",
+        ]
+    )
     recommendedAction: str = "Проверить поступление телеметрии и состояние соединения"
     severity: DiagnosisSeverity = "warn"
     connectionDiagnosis: ConnectionDiagnosis | None = None

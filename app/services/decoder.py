@@ -70,6 +70,7 @@ class DecodedState:
     status_code: str
     label: str
     state_label: str
+    fault_label: str
     description: str
     fault: bool
     severity: str
@@ -147,6 +148,7 @@ def decode_channel_state(in_bit: int, out_bit: int, dg_bit: int) -> DecodedState
             status_code="normal",
             label="Норма",
             state_label="Норма",
+            fault_label="Норма",
             description="Норма",
             fault=False,
             severity="info",
@@ -159,9 +161,10 @@ def decode_channel_state(in_bit: int, out_bit: int, dg_bit: int) -> DecodedState
         return DecodedState(
             status="fault",
             status_code="break",
-            label="Обрыв",
-            state_label="Обрыв",
-            description="Обрыв",
+            label="ОБРЫВ",
+            state_label="ОБРЫВ",
+            fault_label="ОБРЫВ",
+            description="ОБРЫВ",
             fault=True,
             severity="error",
             fault_type="break",
@@ -175,6 +178,7 @@ def decode_channel_state(in_bit: int, out_bit: int, dg_bit: int) -> DecodedState
             status_code="short",
             label="КЗ",
             state_label="КЗ",
+            fault_label="КЗ",
             description="КЗ",
             fault=True,
             severity="error",
@@ -186,9 +190,10 @@ def decode_channel_state(in_bit: int, out_bit: int, dg_bit: int) -> DecodedState
     return DecodedState(
         status="unknown",
         status_code="unknown",
-        label="Нет данных",
-        state_label="Нет данных",
-        description="Нет данных",
+        label="Неизвестно",
+        state_label="Неизвестно",
+        fault_label="Неизвестно",
+        description="Неизвестно",
         fault=False,
         severity="warning",
         fault_type="unknown",
@@ -275,6 +280,7 @@ class DecoderService:
                     stateLabel="РќРµР°РєС‚РёРІРЅРѕ",
                     stateText="РќРµР°РєС‚РёРІРЅРѕ",
                     label="РќРµР°РєС‚РёРІРЅРѕ",
+                    faultLabel="РќРµР°РєС‚РёРІРЅРѕ",
                     faultType=None,
                     faultText=None,
                     inBit=0,
@@ -283,6 +289,8 @@ class DecoderService:
                     stateTuple=[0, 0, 0],
                     yellow_led=False,
                     red_led=False,
+                    yellowActive=False,
+                    redActive=False,
                     message="РќРµС‚ РґР°РЅРЅС‹С…",
                     reason=None,
                     cause=None,
@@ -322,6 +330,7 @@ class DecoderService:
                     stateLabel="РќРµР°РєС‚РёРІРЅРѕ",
                     stateText="РќРµР°РєС‚РёРІРЅРѕ",
                     label="РќРµР°РєС‚РёРІРЅРѕ",
+                    faultLabel="РќРµР°РєС‚РёРІРЅРѕ",
                     faultType=None,
                     faultText=None,
                     inBit=0,
@@ -330,6 +339,8 @@ class DecoderService:
                     stateTuple=[0, 0, 0],
                     yellow_led=False,
                     red_led=False,
+                    yellowActive=False,
+                    redActive=False,
                     message="РќРµС‚ РґР°РЅРЅС‹С…",
                     reason=None,
                     cause=None,
@@ -531,6 +542,7 @@ class DecoderService:
                     stateLabel=decoded_state.state_label,
                     stateText=decoded_state.state_label,
                     label=decoded_state.label,
+                    faultLabel=decoded_state.fault_label,
                     faultType=decoded_state.fault_type,  # type: ignore[arg-type]
                     faultText=resolve_fault_text(decoded_state.fault_type),
                     inBit=input_bit,
@@ -539,6 +551,8 @@ class DecoderService:
                     stateTuple=[input_bit, output_bit, diagnostic_bit],
                     yellow_led=decoded_state.yellow_led,
                     red_led=decoded_state.red_led,
+                    yellowActive=decoded_state.yellow_led,
+                    redActive=decoded_state.red_led,
                     message=text.message,
                     reason=text.reason,
                     cause=text.cause,
@@ -626,6 +640,7 @@ class DecoderService:
                     stateLabel=decoded_state.state_label,
                     stateText=decoded_state.state_label,
                     label=decoded_state.label,
+                    faultLabel=decoded_state.fault_label,
                     faultType=decoded_state.fault_type,  # type: ignore[arg-type]
                     faultText=resolve_fault_text(decoded_state.fault_type),
                     inBit=input_bit,
@@ -634,6 +649,8 @@ class DecoderService:
                     stateTuple=[input_bit, output_bit, diagnostic_bit],
                     yellow_led=decoded_state.yellow_led,
                     red_led=decoded_state.red_led,
+                    yellowActive=decoded_state.yellow_led,
+                    redActive=decoded_state.red_led,
                     message=decoded_state.description,
                     reason=cause,
                     cause=cause,
